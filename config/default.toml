@@ -1,0 +1,18 @@
+[llm]
+# LLM API endpoint
+url = "https://api.minimax.io/v1/chat/completions"
+
+# Model name
+model = "MiniMax-M2.7"
+
+# Temperature (0.0 - 2.0)
+temperature = 0.7
+
+# Top-p sampling (0.0 - 1.0)
+top_p = 0.9
+
+# Maximum completion tokens
+max_completion_tokens = 2048
+
+# System prompt file (relative to prompts/)
+system_prompt_file = "system_prompt.md"
