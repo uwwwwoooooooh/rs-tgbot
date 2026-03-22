@@ -41,7 +41,6 @@ pub struct LlmConfig {
     pub temperature: Option<f32>,
     pub top_p: Option<f32>,
     pub max_completion_tokens: Option<u32>,
-    pub system_prompt: String,
 }
 
 /// temperature within (0.0 - 2.0)
@@ -55,18 +54,15 @@ fn validate_max_tokens(tokens: Option<u32>) -> Option<u32> {
 }
 
 /// Load system prompt from file in prompts/ directory
-fn load_system_prompt(filename: &str) -> String {
+pub fn load_system_prompt(filename: &str) -> String {
     let prompt_path = PathBuf::from("prompts").join(filename);
 
-    fs::read_to_string(&prompt_path).unwrap_or_else(|err| {
-        eprintln!(
-            "Warning: Could not read {}: {}. Using default system prompt.",
-            prompt_path.display(),
-            err
-        );
-        "You are a helpless AI assistant. Please reply in English with Japanese Katakana style."
-            .to_string()
-    })
+    fs::read_to_string(&prompt_path)
+        .unwrap_or_else(|err| {
+            eprintln!("Warning: Could not read {}: {}. Using default system prompt.", 
+                prompt_path.display(), err);
+            "You are a helpless AI assistant. Please reply in English but spell by katakana. Example: goodo morningu".to_string()
+        })
 }
 
 /// Load LLM configuration from config file and env variables
@@ -79,7 +75,6 @@ pub fn load_llm_config() -> LlmConfig {
         temperature: Option<f32>,
         top_p: Option<f32>,
         max_completion_tokens: Option<u32>,
-        system_prompt_file: Option<String>,
     }
 
     // Load from default config file (config/default.toml)
@@ -107,12 +102,6 @@ pub fn load_llm_config() -> LlmConfig {
     let top_p = validate_temperature(llm_file.top_p);
     let max_completion_tokens = validate_max_tokens(llm_file.max_completion_tokens);
 
-    let prompt_filename = llm_file
-        .system_prompt_file
-        .unwrap_or_else(|| "system_prompt.md".to_string());
-
-    let system_prompt = load_system_prompt(&prompt_filename);
-
     LlmConfig {
         api_key,
         url,
@@ -120,7 +109,6 @@ pub fn load_llm_config() -> LlmConfig {
         temperature,
         top_p,
         max_completion_tokens,
-        system_prompt,
     }
 }
 
@@ -196,7 +184,6 @@ mod tests {
             temperature: Some(0.5),
             top_p: Some(0.9),
             max_completion_tokens: Some(100),
-            system_prompt: "You are a test assistant.".to_string(),
         };
 
         let history = vec![
@@ -235,7 +222,6 @@ mod tests {
             temperature: None,
             top_p: None,
             max_completion_tokens: None,
-            system_prompt: "You are a test assistant.".to_string(),
         };
 
         let history = vec![Message {
@@ -267,7 +253,6 @@ mod tests {
             temperature: None,
             top_p: None,
             max_completion_tokens: None,
-            system_prompt: "You are a test assistant.".to_string(),
         };
 
         let history = vec![Message {
@@ -294,7 +279,6 @@ mod tests {
         assert_eq!(config.api_key, "test_api_key");
         assert!(!config.url.is_empty());
         assert!(!config.model_name.is_empty());
-        assert!(!config.system_prompt.is_empty());
     }
 
     #[test]

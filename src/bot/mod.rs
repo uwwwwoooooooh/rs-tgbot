@@ -2,6 +2,7 @@ pub mod handlers;
 
 use crate::bot::handlers::chat::handle_text_message;
 use crate::services::llm::LlmConfig;
+use crate::services::user_prefs::UserPrefsStore;
 use std::sync::Arc;
 use teloxide::prelude::*;
 
@@ -16,6 +17,9 @@ pub async fn run_bot(config: LlmConfig, bot_token: String) {
     // arc for shared ownership of the config across async handlers
     let shared_config = Arc::new(config);
 
+    // user prefs store
+    let prefs_store = Arc::new(UserPrefsStore::new("user_prefs.json"));
+
     println!("============================");
     println!("Telegram Bot is now online");
     println!("============================");
@@ -26,7 +30,7 @@ pub async fn run_bot(config: LlmConfig, bot_token: String) {
 
     // build and start
     Dispatcher::builder(bot, handler)
-        .dependencies(dptree::deps![shared_config, me])
+        .dependencies(dptree::deps![shared_config, prefs_store])
         .enable_ctrlc_handler()
         .build()
         .dispatch()
