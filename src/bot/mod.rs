@@ -5,13 +5,20 @@ use crate::services::llm::LlmConfig;
 use crate::services::user_prefs::UserPrefsStore;
 use std::sync::Arc;
 use teloxide::prelude::*;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum BotRunningError {
+    #[error("Telegram bot error: {0}")]
+    Telegram(#[from] teloxide::RequestError),
+}
 
 /// tg bot dispatcher
-pub async fn run_bot(config: LlmConfig, bot_token: String) {
+pub async fn run_bot(config: LlmConfig, bot_token: String) -> Result<(), BotRunningError> {
     // init bot with given token
     let bot = Bot::new(bot_token);
 
-    let me = bot.get_me().await.expect("Failed to get bot info");
+    let me = bot.get_me().await?;
     println!("Bot name: @{}", me.username());
 
     // arc for shared ownership of the config across async handlers
@@ -35,4 +42,6 @@ pub async fn run_bot(config: LlmConfig, bot_token: String) {
         .build()
         .dispatch()
         .await;
+
+    Ok(())
 }
