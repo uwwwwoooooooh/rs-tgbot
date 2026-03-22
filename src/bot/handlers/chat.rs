@@ -18,8 +18,8 @@ pub async fn handle_text_message(
         let bot_username = &format!("@{}", me.username());
         let is_mentioned = user_text.contains(bot_username);
         let is_private = msg.chat.is_private();
-        let is_reply_to_bot = msg.reply_to_message().map_or(false, |reply| {
-            reply.from.as_ref().map_or(false, |user| user.id == me.id)
+        let is_reply_to_bot = msg.reply_to_message().is_some_and(|reply| {
+            reply.from.as_ref().is_some_and(|user| user.id == me.id)
         });
         // TODO: group chat not finished. will add memory for each member
 

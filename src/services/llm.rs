@@ -46,7 +46,7 @@ pub struct LlmConfig {
 
 /// temperature within (0.0 - 2.0)
 fn validate_temperature(temp: Option<f32>) -> Option<f32> {
-    temp.and_then(|t| if t >= 0.0 && t <= 2.0 { Some(t) } else { None })
+    temp.and_then(|t| if (0.0..=2.0).contains(&t) { Some(t) } else { None })
 }
 
 /// max_completion_tokens must be positive
