@@ -1,7 +1,7 @@
+use config::Config;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::{env, fs, path::PathBuf};
-use config::Config;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Message {
@@ -57,13 +57,16 @@ fn validate_max_tokens(tokens: Option<u32>) -> Option<u32> {
 /// Load system prompt from file in prompts/ directory
 fn load_system_prompt(filename: &str) -> String {
     let prompt_path = PathBuf::from("prompts").join(filename);
-    
-    fs::read_to_string(&prompt_path)
-        .unwrap_or_else(|err| {
-            eprintln!("Warning: Could not read {}: {}. Using default system prompt.", 
-                prompt_path.display(), err);
-            "You are a helpless AI assistant. Please reply in English with Japanese Katakana style.".to_string()
-        })
+
+    fs::read_to_string(&prompt_path).unwrap_or_else(|err| {
+        eprintln!(
+            "Warning: Could not read {}: {}. Using default system prompt.",
+            prompt_path.display(),
+            err
+        );
+        "You are a helpless AI assistant. Please reply in English with Japanese Katakana style."
+            .to_string()
+    })
 }
 
 /// Load LLM configuration from config file and env variables
@@ -95,13 +98,10 @@ pub fn load_llm_config() -> LlmConfig {
         .url
         .unwrap_or_else(|| "https://api.minimax.io/v1/chat/completions".to_string());
 
-    let model_name = llm_file
-        .model
-        .unwrap_or_else(|| "MiniMax-M2.7".to_string());
+    let model_name = llm_file.model.unwrap_or_else(|| "MiniMax-M2.7".to_string());
 
     // API key must be set
-    let api_key = env::var("LLM_API_KEY")
-        .expect("LLM_API_KEY must be set!");
+    let api_key = env::var("LLM_API_KEY").expect("LLM_API_KEY must be set!");
 
     let temperature = validate_temperature(llm_file.temperature);
     let top_p = validate_temperature(llm_file.top_p);
@@ -125,24 +125,28 @@ pub fn load_llm_config() -> LlmConfig {
 }
 
 /// Send entire conversation history
-pub async fn ask_llm(config: &LlmConfig, history: &[Message]) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+pub async fn ask_llm(
+    config: &LlmConfig,
+    history: &[Message],
+) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     let client = Client::new();
 
     let request_body = ChatRequest {
         model: config.model_name.clone(),
         messages: history.to_vec(),
-        temperature: config.temperature, 
+        temperature: config.temperature,
         top_p: config.top_p,
         max_completion_tokens: config.max_completion_tokens,
     };
 
     // HTTP POST request with URL and API key
-    let response = client.post(&config.url)
+    let response = client
+        .post(&config.url)
         .header("Authorization", format!("Bearer {}", config.api_key))
         .header("Content-Type", "application/json")
-        .json(&request_body) 
+        .json(&request_body)
         .send()
-        .await?; 
+        .await?;
 
     let raw_text = response.text().await?;
 
@@ -162,9 +166,7 @@ pub async fn ask_llm(config: &LlmConfig, history: &[Message]) -> Result<String, 
                 Ok("Error: The API replied successfully, but gave no content.".to_string())
             }
         }
-        Err(_) => {
-            Err(format!("API Error:\n{}", raw_text).into())
-        }
+        Err(_) => Err(format!("API Error:\n{}", raw_text).into()),
     }
 }
 
@@ -181,7 +183,9 @@ mod tests {
             .mock("POST", "/v1/chat/completions")
             .with_status(200)
             .with_header("content-type", "application/json")
-            .with_body(r#"{"choices":[{"message":{"role":"assistant","content":"Hello, world!"}}]}"#)
+            .with_body(
+                r#"{"choices":[{"message":{"role":"assistant","content":"Hello, world!"}}]}"#,
+            )
             .create_async()
             .await;
 

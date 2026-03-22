@@ -1,9 +1,9 @@
+use std::sync::Arc;
 use teloxide::prelude::*;
 use teloxide::types::Me;
-use std::sync::Arc;
 // colliding with teloxide::prelude::Message
 // LLM Message => LlmMessage
-use crate::services::llm::{ask_llm, Message as LlmMessage, LlmConfig};
+use crate::services::llm::{LlmConfig, Message as LlmMessage, ask_llm};
 
 /// text message handler
 pub async fn handle_text_message(
@@ -11,8 +11,9 @@ pub async fn handle_text_message(
     msg: Message,
     config: Arc<LlmConfig>,
     me: Me,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> { // needs to be thread-safe. Send + Sync
-    
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    // needs to be thread-safe. Send + Sync
+
     if let Some(user_text) = msg.text() {
         let bot_username = &format!("@{}", me.username());
         let is_mentioned = user_text.contains(bot_username);
@@ -24,7 +25,10 @@ pub async fn handle_text_message(
 
         if is_private || is_mentioned || is_reply_to_bot {
             let cleaned_text = user_text.replace(bot_username, "").trim().to_string();
-            println!("Received message from chat {}: {}", msg.chat.id, cleaned_text);
+            println!(
+                "Received message from chat {}: {}",
+                msg.chat.id, cleaned_text
+            );
         } else {
             return Ok(());
         }
@@ -38,7 +42,7 @@ pub async fn handle_text_message(
             LlmMessage {
                 role: "user".to_string(),
                 content: user_text.to_string(),
-            }
+            },
         ];
 
         match ask_llm(&config, &history).await {
@@ -47,7 +51,11 @@ pub async fn handle_text_message(
             }
             Err(error) => {
                 eprintln!("Failed to get response from LLM: {}", error);
-                bot.send_message(msg.chat.id, "Someone tell Vedal that there is a problem with my AI.").await?;
+                bot.send_message(
+                    msg.chat.id,
+                    "Someone tell Vedal that there is a problem with my AI.",
+                )
+                .await?;
             }
         }
     }
