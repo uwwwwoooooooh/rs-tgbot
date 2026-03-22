@@ -45,7 +45,13 @@ pub struct LlmConfig {
 
 /// temperature within (0.0 - 2.0)
 fn validate_temperature(temp: Option<f32>) -> Option<f32> {
-    temp.and_then(|t| if (0.0..=2.0).contains(&t) { Some(t) } else { None })
+    temp.and_then(|t| {
+        if (0.0..=2.0).contains(&t) {
+            Some(t)
+        } else {
+            None
+        }
+    })
 }
 
 /// max_completion_tokens must be positive
@@ -66,7 +72,7 @@ pub fn load_system_prompt(filename: &str) -> String {
 }
 
 /// Load LLM configuration from config file and env variables
-pub fn load_llm_config() -> LlmConfig {
+pub fn load_llm_config() -> Result<LlmConfig, Box<dyn std::error::Error>> {
     // Define config structure
     #[derive(Deserialize)]
     struct LlmConfigFile {
@@ -81,13 +87,10 @@ pub fn load_llm_config() -> LlmConfig {
     let config = Config::builder()
         .add_source(config::File::with_name("config/default.toml"))
         .add_source(config::Environment::with_prefix("LLM"))
-        .build()
-        .expect("Failed to load config");
+        .build()?;
 
     // Extract llm section and convert to struct
-    let llm_file: LlmConfigFile = config
-        .get::<LlmConfigFile>("llm")
-        .expect("No [llm] section found in config");
+    let llm_file: LlmConfigFile = config.get::<LlmConfigFile>("llm")?;
 
     let url = llm_file
         .url
@@ -96,20 +99,20 @@ pub fn load_llm_config() -> LlmConfig {
     let model_name = llm_file.model.unwrap_or_else(|| "MiniMax-M2.7".to_string());
 
     // API key must be set
-    let api_key = env::var("LLM_API_KEY").expect("LLM_API_KEY must be set!");
+    let api_key = env::var("LLM_API_KEY").map_err(|_| "LLM_API_KEY must be set!")?;
 
     let temperature = validate_temperature(llm_file.temperature);
     let top_p = validate_temperature(llm_file.top_p);
     let max_completion_tokens = validate_max_tokens(llm_file.max_completion_tokens);
 
-    LlmConfig {
+    Ok(LlmConfig {
         api_key,
         url,
         model_name,
         temperature,
         top_p,
         max_completion_tokens,
-    }
+    })
 }
 
 /// Send entire conversation history
@@ -141,18 +144,17 @@ pub async fn ask_llm(
     // parse response
     match serde_json::from_str::<ChatResponse>(&raw_text) {
         Ok(parsed_response) => {
-            if let Some(choice) = parsed_response.choices.first() {
-                let mut final_answer = choice.message.content.clone();
+            let Some(choice) = parsed_response.choices.first() else {
+                return Ok("Error: The API replied successfully, but gave no content.".to_string());
+            };
 
-                // Clean up <think> block
-                if let Some(end_index) = final_answer.find("</think>") {
-                    final_answer = final_answer[end_index + 8..].trim().to_string();
-                }
+            let mut final_answer = choice.message.content.clone();
 
-                Ok(final_answer)
-            } else {
-                Ok("Error: The API replied successfully, but gave no content.".to_string())
+            // Clean up <tool_call> block
+            if let Some(end_index) = final_answer.find("</think>") {
+                final_answer = final_answer[end_index + 8..].trim().to_string();
             }
+            Ok(final_answer)
         }
         Err(_) => Err(format!("API Error:\n{}", raw_text).into()),
     }
@@ -273,7 +275,7 @@ mod tests {
             env::set_var("LLM_API_KEY", "test_api_key");
         }
 
-        let config = load_llm_config();
+        let config = load_llm_config().unwrap();
 
         // Check that defaults from config/default.toml are loaded
         assert_eq!(config.api_key, "test_api_key");
@@ -287,7 +289,7 @@ mod tests {
             env::set_var("LLM_API_KEY", "test_api_key");
         }
 
-        let config = load_llm_config();
+        let config = load_llm_config().unwrap();
 
         // Verify expected defaults from config/default.toml
         assert_eq!(config.url, "https://api.minimax.io/v1/chat/completions");
@@ -299,14 +301,16 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // This test requires manual environment setup to avoid interference
+    #[ignore] // This test would panic if LLM_API_KEY is not set.
+    // Skipped in automated tests due to environment variable persistence.
     fn test_load_llm_config_missing_api_key() {
         // Note: This test would panic if LLM_API_KEY is not set.
         // Skipped in automated tests due to environment variable persistence.
         unsafe {
             env::remove_var("LLM_API_KEY");
         }
-        let _ = load_llm_config(); // Should panic with "LLM_API_KEY must be set"
+        let result = load_llm_config();
+        assert!(result.is_err());
     }
 
     #[test]
