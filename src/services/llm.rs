@@ -72,20 +72,8 @@ pub fn load_system_prompt(filename: &str) -> String {
         })
 }
 
-#[derive(Error, Debug)]
-pub enum LlmLoadingError {
-    #[error("Telegram bot error: {0}")]
-    Telegram(#[from] teloxide::RequestError),
-
-    #[error("Config error: {0}")]
-    Config(#[from] config::ConfigError),
-
-    #[error("Missing env variable: {0}")]
-    VarError(#[from] std::env::VarError),
-}
-
 /// Load LLM configuration from config file and env variables
-pub fn load_llm_config() -> Result<LlmConfig, LlmLoadingError> {
+pub fn load_llm_config() -> Result<LlmConfig, crate::error::AppError> {
     // Define config structure
     #[derive(Deserialize)]
     struct LlmConfigFile {
