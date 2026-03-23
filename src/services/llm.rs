@@ -93,11 +93,15 @@ pub fn load_llm_config() -> Result<LlmConfig, crate::error::AppError> {
     // Extract llm section and convert to struct
     let llm_file: LlmConfigFile = config.get::<LlmConfigFile>("llm")?;
 
-    let url = llm_file
-        .url
-        .unwrap_or_else(|| "https://api.minimax.io/v1/chat/completions".to_string());
+    let url = llm_file.url.ok_or(crate::error::AppError::LlmConfigError(
+        "LLM URL is missing in config".to_string(),
+    ))?;
 
-    let model_name = llm_file.model.unwrap_or_else(|| "MiniMax-M2.7".to_string());
+    let model_name = llm_file
+        .model
+        .ok_or(crate::error::AppError::LlmConfigError(
+            "LLM model name is missing in config".to_string(),
+        ))?;
 
     // API key must be set
     let api_key = env::var("LLM_API_KEY")?;
