@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
@@ -6,7 +7,7 @@ use tokio::sync::Mutex;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct UserPrefs {
-    pub soul: String, // "nanami" or "neuro"
+    pub soul: String,
 }
 
 impl Default for UserPrefs {
@@ -17,15 +18,37 @@ impl Default for UserPrefs {
     }
 }
 
-pub struct UserPrefsStore {
+// TODO: postgres version
+#[async_trait]
+pub trait UserPrefsStore: Send + Sync {
+    async fn get(&self, user_id: i64) -> UserPrefs;
+    async fn set(&self, user_id: i64, prefs: UserPrefs);
+}
+
+// simple JSON version
+pub struct JsonUserPrefsStore {
     prefs: Mutex<HashMap<i64, UserPrefs>>, // user_id -> prefs
     file_path: String,
 }
 
-impl UserPrefsStore {
+#[async_trait]
+impl UserPrefsStore for JsonUserPrefsStore {
+    async fn get(&self, user_id: i64) -> UserPrefs {
+        let prefs = self.prefs.lock().await;
+        prefs.get(&user_id).cloned().unwrap_or_default()
+    }
+
+    async fn set(&self, user_id: i64, prefs: UserPrefs) {
+        let mut prefs_map = self.prefs.lock().await;
+        prefs_map.insert(user_id, prefs);
+        self.save_to_file(&prefs_map);
+    }
+}
+
+impl JsonUserPrefsStore {
     pub fn new(file_path: &str) -> Self {
         let prefs = Self::load_from_file(file_path);
-        UserPrefsStore {
+        JsonUserPrefsStore {
             prefs: Mutex::new(prefs),
             file_path: file_path.to_string(),
         }
@@ -38,17 +61,6 @@ impl UserPrefsStore {
         } else {
             HashMap::new()
         }
-    }
-
-    pub async fn get(&self, user_id: i64) -> UserPrefs {
-        let prefs = self.prefs.lock().await;
-        prefs.get(&user_id).cloned().unwrap_or_default()
-    }
-
-    pub async fn set(&self, user_id: i64, prefs: UserPrefs) {
-        let mut prefs_map = self.prefs.lock().await;
-        prefs_map.insert(user_id, prefs);
-        self.save_to_file(&prefs_map);
     }
 
     fn save_to_file(&self, prefs: &HashMap<i64, UserPrefs>) {

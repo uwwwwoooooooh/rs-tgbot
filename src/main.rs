@@ -1,4 +1,6 @@
 mod bot;
+mod db;
+mod error;
 mod services;
 
 use crate::services::llm::load_llm_config;

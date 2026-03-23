@@ -1,20 +1,13 @@
 pub mod handlers;
 
 use crate::bot::handlers::chat::handle_text_message;
+use crate::db::user_prefs::{JsonUserPrefsStore, UserPrefsStore};
 use crate::services::llm::LlmConfig;
-use crate::services::user_prefs::UserPrefsStore;
 use std::sync::Arc;
 use teloxide::prelude::*;
-use thiserror::Error;
-
-#[derive(Error, Debug)]
-pub enum BotRunningError {
-    #[error("Telegram bot error: {0}")]
-    Telegram(#[from] teloxide::RequestError),
-}
 
 /// tg bot dispatcher
-pub async fn run_bot(config: LlmConfig, bot_token: String) -> Result<(), BotRunningError> {
+pub async fn run_bot(config: LlmConfig, bot_token: String) -> Result<(), crate::error::AppError> {
     // init bot with given token
     let bot = Bot::new(bot_token);
 
@@ -25,7 +18,7 @@ pub async fn run_bot(config: LlmConfig, bot_token: String) -> Result<(), BotRunn
     let shared_config = Arc::new(config);
 
     // user prefs store
-    let prefs_store = Arc::new(UserPrefsStore::new("user_prefs.json"));
+    let prefs_store: Arc<dyn UserPrefsStore> = Arc::new(JsonUserPrefsStore::new("user_prefs.json"));
 
     println!("============================");
     println!("Telegram Bot is now online");

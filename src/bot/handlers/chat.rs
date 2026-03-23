@@ -1,36 +1,23 @@
+use crate::db::user_prefs::{UserPrefs, UserPrefsStore};
 use crate::services::llm::{LlmConfig, Message as LlmMessage, ask_llm};
-use crate::services::user_prefs::{UserPrefs, UserPrefsStore};
 use std::sync::Arc;
 use teloxide::prelude::*;
-use thiserror::Error;
-
-#[derive(Error, Debug)]
-pub enum TextHandlingError {
-    #[error("Telegram bot error: {0}")]
-    Telegram(#[from] teloxide::RequestError),
-
-    #[error("Failed to get user info")]
-    UserInfoNotFound,
-
-    #[error("Failed to get user text")]
-    UserTextNotFound,
-}
 
 /// text message handler
 pub async fn handle_text_message(
     bot: Bot,
     msg: Message,
     config: Arc<LlmConfig>,
-    prefs_store: Arc<UserPrefsStore>,
-) -> Result<(), TextHandlingError> {
+    prefs_store: Arc<dyn UserPrefsStore>,
+) -> Result<(), crate::error::AppError> {
     // needs to be thread-safe. Send + Sync
 
     let Some(user) = msg.from.as_ref() else {
-        return Err(TextHandlingError::UserInfoNotFound);
+        return Err(crate::error::AppError::UserInfoNotFound);
     };
 
     let Some(user_text) = msg.text() else {
-        return Err(TextHandlingError::UserTextNotFound);
+        return Err(crate::error::AppError::UserTextNotFound);
     };
 
     let user_id = user.id.0 as i64;
