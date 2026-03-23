@@ -78,7 +78,7 @@ pub async fn handle_text_message(
         },
     ];
 
-    match ask_llm(&config, &history).await {
+    match ask_llm(&config, history).await {
         Ok(reply_text) => {
             println!("Reply to chat {}: {}", msg.chat.id, reply_text);
             bot.send_message(msg.chat.id, reply_text).await?;

@@ -11,8 +11,8 @@ pub struct Message {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct ChatRequest {
-    pub model: String,
+pub struct ChatRequest<'a> {
+    pub model: &'a str,
     pub messages: Vec<Message>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub temperature: Option<f32>,
@@ -128,12 +128,12 @@ pub enum LlmAskingError {
     JsonParse(#[from] serde_json::Error),
 }
 /// Send entire conversation history
-pub async fn ask_llm(config: &LlmConfig, history: &[Message]) -> Result<String, LlmAskingError> {
+pub async fn ask_llm(config: &LlmConfig, history: Vec<Message>) -> Result<String, LlmAskingError> {
     let client = Client::new();
 
     let request_body = ChatRequest {
-        model: config.model_name.clone(),
-        messages: history.to_vec(),
+        model: &config.model_name,
+        messages: history,
         temperature: config.temperature,
         top_p: config.top_p,
         max_completion_tokens: config.max_completion_tokens,
@@ -152,11 +152,12 @@ pub async fn ask_llm(config: &LlmConfig, history: &[Message]) -> Result<String, 
 
     // parse response
     let parsed_response = serde_json::from_str::<ChatResponse>(&raw_text)?;
-    let Some(choice) = parsed_response.choices.first() else {
+    // first() changed to into_iter, take the ownership to avoid deep copy
+    let Some(choice) = parsed_response.choices.into_iter().next() else {
         return Ok("Error: The API replied successfully, but gave no content.".to_string());
     };
 
-    let mut final_answer = choice.message.content.clone();
+    let mut final_answer = choice.message.content;
 
     // Clean up <tool_call> block
     if let Some(end_index) = final_answer.find("</think>") {
@@ -204,7 +205,7 @@ mod tests {
             },
         ];
 
-        let result = ask_llm(&config, &history).await;
+        let result = ask_llm(&config, history).await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "Hello, world!");
 
@@ -236,7 +237,7 @@ mod tests {
             content: "Test".to_string(),
         }];
 
-        let result = ask_llm(&config, &history).await;
+        let result = ask_llm(&config, history).await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "Final answer");
 
@@ -267,7 +268,7 @@ mod tests {
             content: "Test".to_string(),
         }];
 
-        let result = ask_llm(&config, &history).await;
+        let result = ask_llm(&config, history).await;
         assert!(result.is_err());
 
         mock.assert_async().await;
