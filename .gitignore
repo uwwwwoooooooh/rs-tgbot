@@ -1,2 +1,5 @@
 /target
+/prompts/nanami_soul.md
+/prompts/neuro_soul.md
 .env
+user_prefs.json

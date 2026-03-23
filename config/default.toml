@@ -13,6 +13,3 @@ top_p = 0.9
 
 # Maximum completion tokens
 max_completion_tokens = 2048
-
-# System prompt file (relative to prompts/)
-system_prompt_file = "system_prompt.md"

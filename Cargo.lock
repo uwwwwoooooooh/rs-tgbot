@@ -1812,6 +1812,7 @@ dependencies = [
 name = "rs-tgbot"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "chrono",
  "config",
  "dotenvy",
@@ -1820,6 +1821,7 @@ dependencies = [
  "serde",
  "serde_json",
  "teloxide",
+ "thiserror 2.0.18",
  "tokio",
  "tokio-test",
 ]
