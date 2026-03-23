@@ -2,7 +2,6 @@ use config::Config;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::{env, fs, path::PathBuf};
-use thiserror::Error;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Message {
@@ -11,8 +10,8 @@ pub struct Message {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct ChatRequest {
-    pub model: String,
+pub struct ChatRequest<'a> {
+    pub model: &'a str,
     pub messages: Vec<Message>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub temperature: Option<f32>,
@@ -93,11 +92,15 @@ pub fn load_llm_config() -> Result<LlmConfig, crate::error::AppError> {
     // Extract llm section and convert to struct
     let llm_file: LlmConfigFile = config.get::<LlmConfigFile>("llm")?;
 
-    let url = llm_file
-        .url
-        .unwrap_or_else(|| "https://api.minimax.io/v1/chat/completions".to_string());
+    let url = llm_file.url.ok_or(crate::error::AppError::LlmConfigError(
+        "LLM URL is missing in config".to_string(),
+    ))?;
 
-    let model_name = llm_file.model.unwrap_or_else(|| "MiniMax-M2.7".to_string());
+    let model_name = llm_file
+        .model
+        .ok_or(crate::error::AppError::LlmConfigError(
+            "LLM model name is missing in config".to_string(),
+        ))?;
 
     // API key must be set
     let api_key = env::var("LLM_API_KEY")?;
@@ -116,24 +119,16 @@ pub fn load_llm_config() -> Result<LlmConfig, crate::error::AppError> {
     })
 }
 
-#[derive(Error, Debug)]
-pub enum LlmAskingError {
-    #[error("Request error: {0}")]
-    Request(#[from] reqwest::Error),
-
-    #[error("Config error: {0}")]
-    Config(#[from] config::ConfigError),
-
-    #[error("Json error: {0}")]
-    JsonParse(#[from] serde_json::Error),
-}
 /// Send entire conversation history
-pub async fn ask_llm(config: &LlmConfig, history: &[Message]) -> Result<String, LlmAskingError> {
+pub async fn ask_llm(
+    config: &LlmConfig,
+    history: Vec<Message>,
+) -> Result<String, crate::error::AppError> {
     let client = Client::new();
 
     let request_body = ChatRequest {
-        model: config.model_name.clone(),
-        messages: history.to_vec(),
+        model: &config.model_name,
+        messages: history,
         temperature: config.temperature,
         top_p: config.top_p,
         max_completion_tokens: config.max_completion_tokens,
@@ -152,11 +147,12 @@ pub async fn ask_llm(config: &LlmConfig, history: &[Message]) -> Result<String, 
 
     // parse response
     let parsed_response = serde_json::from_str::<ChatResponse>(&raw_text)?;
-    let Some(choice) = parsed_response.choices.first() else {
+    // first() changed to into_iter, take the ownership to avoid deep copy
+    let Some(choice) = parsed_response.choices.into_iter().next() else {
         return Ok("Error: The API replied successfully, but gave no content.".to_string());
     };
 
-    let mut final_answer = choice.message.content.clone();
+    let mut final_answer = choice.message.content;
 
     // Clean up <tool_call> block
     if let Some(end_index) = final_answer.find("</think>") {
@@ -204,7 +200,7 @@ mod tests {
             },
         ];
 
-        let result = ask_llm(&config, &history).await;
+        let result = ask_llm(&config, history).await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "Hello, world!");
 
@@ -236,7 +232,7 @@ mod tests {
             content: "Test".to_string(),
         }];
 
-        let result = ask_llm(&config, &history).await;
+        let result = ask_llm(&config, history).await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "Final answer");
 
@@ -267,7 +263,7 @@ mod tests {
             content: "Test".to_string(),
         }];
 
-        let result = ask_llm(&config, &history).await;
+        let result = ask_llm(&config, history).await;
         assert!(result.is_err());
 
         mock.assert_async().await;

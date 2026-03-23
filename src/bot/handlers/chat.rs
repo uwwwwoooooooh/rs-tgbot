@@ -48,7 +48,7 @@ pub async fn handle_text_message(
             if soul == "nanami" || soul == "neuro" {
                 prefs_store
                     .set(user_id, UserPrefs { soul: soul.clone() })
-                    .await;
+                    .await?;
                 bot.send_message(msg.chat.id, format!("I'm {} now", soul))
                     .await?;
                 return Ok(());
@@ -61,7 +61,7 @@ pub async fn handle_text_message(
     }
 
     // Build the stateless history using LlmMessage
-    let prefs = prefs_store.get(user_id).await;
+    let prefs = prefs_store.get(user_id).await?;
     let system_prompt = match prefs.soul.as_str() {
         "neuro" => crate::services::llm::load_system_prompt("neuro_soul.md"),
         _ => crate::services::llm::load_system_prompt("nanami_soul.md"), // default to nanami
@@ -78,7 +78,7 @@ pub async fn handle_text_message(
         },
     ];
 
-    match ask_llm(&config, &history).await {
+    match ask_llm(&config, history).await {
         Ok(reply_text) => {
             println!("Reply to chat {}: {}", msg.chat.id, reply_text);
             bot.send_message(msg.chat.id, reply_text).await?;
