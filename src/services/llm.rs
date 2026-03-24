@@ -122,13 +122,13 @@ pub fn load_llm_config() -> Result<LlmConfig, crate::error::AppError> {
 /// Send entire conversation history
 pub async fn ask_llm(
     config: &LlmConfig,
-    history: Vec<Message>,
+    prompt: Vec<Message>,
 ) -> Result<String, crate::error::AppError> {
     let client = Client::new();
 
     let request_body = ChatRequest {
         model: &config.model_name,
-        messages: history,
+        messages: prompt,
         temperature: config.temperature,
         top_p: config.top_p,
         max_completion_tokens: config.max_completion_tokens,

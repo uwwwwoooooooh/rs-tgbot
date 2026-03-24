@@ -1,6 +1,7 @@
 pub mod handlers;
 
 use crate::bot::handlers::chat::handle_text_message;
+use crate::db::history::{HistoryStore, JsonHistoryStore};
 use crate::db::user_prefs::{JsonUserPrefsStore, UserPrefsStore};
 use crate::services::llm::LlmConfig;
 use std::sync::Arc;
@@ -21,6 +22,9 @@ pub async fn run_bot(config: LlmConfig, bot_token: String) -> Result<(), crate::
     let prefs_store: Arc<dyn UserPrefsStore> =
         Arc::new(JsonUserPrefsStore::new("user_prefs.json")?);
 
+    // user prefs store
+    let history_store: Arc<dyn HistoryStore> =
+        Arc::new(JsonHistoryStore::new("user_history.json", 10)?);
     println!("============================");
     println!("Telegram Bot is now online");
     println!("============================");
@@ -31,7 +35,7 @@ pub async fn run_bot(config: LlmConfig, bot_token: String) -> Result<(), crate::
 
     // build and start
     Dispatcher::builder(bot, handler)
-        .dependencies(dptree::deps![shared_config, prefs_store])
+        .dependencies(dptree::deps![shared_config, prefs_store, history_store])
         .enable_ctrlc_handler()
         .build()
         .dispatch()
