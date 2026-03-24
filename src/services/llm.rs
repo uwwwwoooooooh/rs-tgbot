@@ -120,19 +120,8 @@ pub fn load_llm_config() -> Result<LlmConfig, crate::error::AppError> {
     })
 }
 
-#[derive(Error, Debug)]
-pub enum LlmAskingError {
-    #[error("Request error: {0}")]
-    Request(#[from] reqwest::Error),
-
-    #[error("Config error: {0}")]
-    Config(#[from] config::ConfigError),
-
-    #[error("Json error: {0}")]
-    JsonParse(#[from] serde_json::Error),
-}
 /// Send entire conversation history
-pub async fn ask_llm(config: &LlmConfig, history: Vec<Message>) -> Result<String, LlmAskingError> {
+pub async fn ask_llm(config: &LlmConfig, history: Vec<Message>) -> Result<String, create::error:AppError> {
     let client = Client::new();
 
     let request_body = ChatRequest {
