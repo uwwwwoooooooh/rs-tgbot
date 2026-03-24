@@ -22,34 +22,43 @@ impl Default for UserPrefs {
 // TODO: postgres version
 #[async_trait]
 pub trait UserPrefsStore: Send + Sync {
-    async fn get(&self, user_id: i64) -> Result<UserPrefs, crate::error::AppError>;
-    async fn set(&self, user_id: i64, prefs: UserPrefs) -> Result<(), crate::error::AppError>;
+    async fn get(&self, chat_id: i64, user_id: i64) -> Result<UserPrefs, crate::error::AppError>;
+    async fn set(
+        &self,
+        chat_id: i64,
+        user_id: i64,
+        prefs: UserPrefs,
+    ) -> Result<(), crate::error::AppError>;
 }
 
 // simple JSON version
 pub struct JsonUserPrefsStore {
-    prefs: Mutex<HashMap<i64, UserPrefs>>, // user_id -> prefs
+    prefs: Mutex<HashMap<String, UserPrefs>>, // user_id -> prefs
     file_path: String,
 }
 
 #[async_trait]
 impl UserPrefsStore for JsonUserPrefsStore {
-    async fn get(&self, user_id: i64) -> Result<UserPrefs, crate::error::AppError> {
+    async fn get(&self, chat_id: i64, user_id: i64) -> Result<UserPrefs, crate::error::AppError> {
+        let key = format!("{}_{}", chat_id, user_id);
         let prefs = self.prefs.lock().await;
-        prefs
-            .get(&user_id)
-            .cloned()
-            .ok_or(crate::error::AppError::UserPrefsNotFound)
+        Ok(prefs.get(&key).cloned().unwrap_or_default())
     }
 
-    async fn set(&self, user_id: i64, prefs: UserPrefs) -> Result<(), crate::error::AppError> {
+    async fn set(
+        &self,
+        chat_id: i64,
+        user_id: i64,
+        prefs: UserPrefs,
+    ) -> Result<(), crate::error::AppError> {
+        let key = format!("{}_{}", chat_id, user_id);
         // let mut prefs_map = self.prefs.lock().await;
         // prefs_map.insert(user_id, prefs);
         // self.save_to_file(&prefs_map)
 
         let data_to_wtite = {
             let mut prefs_map = self.prefs.lock().await;
-            prefs_map.insert(user_id, prefs);
+            prefs_map.insert(key, prefs);
             serde_json::to_string_pretty(&*prefs_map).map_err(|e| {
                 eprintln!("Failed to serialize user prefs: {}", e);
                 crate::error::AppError::UserPrefsSaveError
@@ -69,7 +78,9 @@ impl JsonUserPrefsStore {
         })
     }
 
-    fn load_from_file(file_path: &str) -> Result<HashMap<i64, UserPrefs>, crate::error::AppError> {
+    fn load_from_file(
+        file_path: &str,
+    ) -> Result<HashMap<String, UserPrefs>, crate::error::AppError> {
         if Path::new(file_path).exists() {
             let data = std::fs::read_to_string(file_path).map_err(|e| {
                 eprintln!("Failed to read user prefs file: {}", e);

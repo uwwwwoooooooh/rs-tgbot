@@ -17,15 +17,17 @@ pub enum AppError {
 
     #[error("Env variable error: {0}")]
     VarError(#[from] std::env::VarError),
-
-    #[error("User prefs not found")]
-    UserPrefsNotFound,
-
     #[error("User prefs load error")]
     UserPrefsLoadError,
 
     #[error("User prefs save error")]
     UserPrefsSaveError,
+
+    #[error("User history load error")]
+    UserHistoryLoadError,
+
+    #[error("User history save error")]
+    UserHistorySaveError,
 
     #[error("LLM config error: {0}")]
     LlmConfigError(String),

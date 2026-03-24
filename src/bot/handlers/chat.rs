@@ -1,3 +1,4 @@
+use crate::db::history::HistoryStore;
 use crate::db::user_prefs::{UserPrefs, UserPrefsStore};
 use crate::services::llm::{LlmConfig, Message as LlmMessage, ask_llm};
 use std::sync::Arc;
@@ -9,6 +10,7 @@ pub async fn handle_text_message(
     msg: Message,
     config: Arc<LlmConfig>,
     prefs_store: Arc<dyn UserPrefsStore>,
+    history_store: Arc<dyn HistoryStore>,
 ) -> Result<(), crate::error::AppError> {
     // needs to be thread-safe. Send + Sync
 
@@ -21,6 +23,7 @@ pub async fn handle_text_message(
     };
 
     let user_id = user.id.0 as i64;
+    let chat_id = msg.chat.id.0;
     let me = bot.get_me().await?;
     let bot_username = &format!("@{}", me.username());
     let is_mentioned = user_text.contains(bot_username);
@@ -45,43 +48,78 @@ pub async fn handle_text_message(
         let parts: Vec<&str> = cleaned_text.split_whitespace().collect();
         if parts.len() == 2 {
             let soul = parts[1].to_lowercase();
+            let current_soul = prefs_store.get(chat_id, user_id).await?.soul;
+            if soul == current_soul {
+                bot.send_message(msg.chat.id, format!("I'm already {} u gym bag", soul))
+                    .await?;
+                return Ok(());
+            }
             if soul == "nanami" || soul == "neuro" {
                 prefs_store
-                    .set(user_id, UserPrefs { soul: soul.clone() })
+                    .set(chat_id, user_id, UserPrefs { soul: soul.clone() })
                     .await?;
+                history_store.clear_history(chat_id, user_id).await?;
                 bot.send_message(msg.chat.id, format!("I'm {} now", soul))
                     .await?;
                 return Ok(());
             } else {
-                bot.send_message(msg.chat.id, "Please choose between nanami or neuro")
+                bot.send_message(msg.chat.id, "only nanami or neuro")
                     .await?;
                 return Ok(());
             }
         }
+    } else if cleaned_text.starts_with("/reset") {
+        prefs_store
+            .set(chat_id, user_id, UserPrefs::default())
+            .await?;
+        history_store.clear_history(chat_id, user_id).await?;
+        bot.send_message(msg.chat.id, "Reset to default soul and cleared history.")
+            .await?;
+        return Ok(());
     }
 
     // Build the stateless history using LlmMessage
-    let prefs = prefs_store.get(user_id).await?;
+    let prefs = prefs_store.get(chat_id, user_id).await?;
     let system_prompt = match prefs.soul.as_str() {
         "neuro" => crate::services::llm::load_system_prompt("neuro_soul.md"),
         _ => crate::services::llm::load_system_prompt("nanami_soul.md"), // default to nanami
     };
 
-    let history = vec![
-        LlmMessage {
-            role: "system".to_string(),
-            content: system_prompt,
-        },
-        LlmMessage {
-            role: "user".to_string(),
-            content: cleaned_text,
-        },
-    ];
+    let mut prompt = vec![LlmMessage {
+        role: "system".to_string(),
+        content: system_prompt,
+    }];
 
-    match ask_llm(&config, history).await {
+    if let Ok(past_messages) = history_store.get_history(chat_id, user_id).await {
+        prompt.extend(past_messages);
+    }
+
+    // prepare history
+    let current_user_msg = LlmMessage {
+        role: "user".to_string(),
+        content: cleaned_text,
+    };
+
+    // only deep copy one message
+    prompt.push(current_user_msg.clone());
+    println!(" prompt {:#?}", prompt);
+
+    history_store
+        .add_message(chat_id, user_id, current_user_msg)
+        .await?;
+
+    match ask_llm(&config, prompt).await {
         Ok(reply_text) => {
             println!("Reply to chat {}: {}", msg.chat.id, reply_text);
-            bot.send_message(msg.chat.id, reply_text).await?;
+            bot.send_message(msg.chat.id, &reply_text).await?;
+            let assistant_msg = LlmMessage {
+                role: "assistant".to_string(),
+                content: reply_text,
+            };
+
+            let _ = history_store
+                .add_message(chat_id, user_id, assistant_msg)
+                .await;
         }
         Err(error) => {
             eprintln!("Failed to get response from LLM: {}", error);
