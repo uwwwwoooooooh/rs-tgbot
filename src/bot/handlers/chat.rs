@@ -48,8 +48,8 @@ pub async fn handle_text_message(
         let parts: Vec<&str> = cleaned_text.split_whitespace().collect();
         if parts.len() == 2 {
             let soul = parts[1].to_lowercase();
-            let current_soul = prefs_store.get(chat_id, user_id).await?.soul;
-            if soul == current_soul {
+            let current_soul = &prefs_store.get(chat_id, user_id).await?.soul;
+            if &soul == current_soul {
                 bot.send_message(msg.chat.id, format!("I'm already {} u gym bag", soul))
                     .await?;
                 return Ok(());
@@ -86,18 +86,18 @@ pub async fn handle_text_message(
     };
 
     let mut prompt = vec![LlmMessage {
-        role: "system".to_string(),
-        content: system_prompt,
+        role: Arc::from("system"),
+        content: Arc::from(system_prompt),
     }];
 
     if let Ok(past_messages) = history_store.get_history(chat_id, user_id).await {
-        prompt.extend(past_messages);
+        prompt.extend(past_messages.iter().cloned());
     }
 
     // prepare history
     let current_user_msg = LlmMessage {
-        role: "user".to_string(),
-        content: cleaned_text,
+        role: Arc::from("user"),
+        content: Arc::from(cleaned_text),
     };
 
     // only deep copy one message
@@ -113,8 +113,8 @@ pub async fn handle_text_message(
             println!("Reply to chat {}: {}", msg.chat.id, reply_text);
             bot.send_message(msg.chat.id, &reply_text).await?;
             let assistant_msg = LlmMessage {
-                role: "assistant".to_string(),
-                content: reply_text,
+                role: Arc::from("assistant"),
+                content: Arc::from(reply_text),
             };
 
             let _ = history_store

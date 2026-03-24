@@ -1,12 +1,13 @@
 use config::Config;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use std::{env, fs, path::PathBuf};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Message {
-    pub role: String,
-    pub content: String,
+    pub role: Arc<str>,
+    pub content: Arc<str>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -152,12 +153,14 @@ pub async fn ask_llm(
         return Ok("Error: The API replied successfully, but gave no content.".to_string());
     };
 
-    let mut final_answer = choice.message.content;
+    let content_str = &choice.message.content;
 
-    // Clean up <tool_call> block
-    if let Some(end_index) = final_answer.find("</think>") {
-        final_answer = final_answer[end_index + 8..].trim().to_string();
-    }
+    // Clean up <think> block
+    let final_answer = if let Some(end_index) = content_str.find("</think>") {
+        content_str[end_index + 8..].trim().to_string()
+    } else {
+        content_str.trim().to_string()
+    };
     Ok(final_answer)
 }
 
@@ -191,12 +194,12 @@ mod tests {
 
         let history = vec![
             Message {
-                role: "system".to_string(),
-                content: "System prompt".to_string(),
+                role: Arc::from("system"),
+                content: Arc::from("System prompt"),
             },
             Message {
-                role: "user".to_string(),
-                content: "Hello".to_string(),
+                role: Arc::from("user"),
+                content: Arc::from("Hello"),
             },
         ];
 
@@ -228,8 +231,8 @@ mod tests {
         };
 
         let history = vec![Message {
-            role: "user".to_string(),
-            content: "Test".to_string(),
+            role: Arc::from("user"),
+            content: Arc::from("Test"),
         }];
 
         let result = ask_llm(&config, history).await;
@@ -259,8 +262,8 @@ mod tests {
         };
 
         let history = vec![Message {
-            role: "user".to_string(),
-            content: "Test".to_string(),
+            role: Arc::from("user"),
+            content: Arc::from("Test"),
         }];
 
         let result = ask_llm(&config, history).await;
