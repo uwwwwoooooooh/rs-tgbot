@@ -1,6 +1,6 @@
 use crate::services::llm::Message as LlmMessage;
 use async_trait::async_trait;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use tokio::fs;
 use tokio::sync::Mutex;
@@ -16,14 +16,14 @@ pub trait HistoryStore: Send + Sync {
         &self,
         chat_id: i64,
         user_id: i64,
-    ) -> Result<Arc<Vec<LlmMessage>>, crate::error::AppError>;
+    ) -> Result<Arc<VecDeque<LlmMessage>>, crate::error::AppError>;
     async fn clear_history(&self, chat_id: i64, user_id: i64)
     -> Result<(), crate::error::AppError>;
 }
 
 // simple json version
 pub struct JsonHistoryStore {
-    history: Mutex<HashMap<String, Arc<Vec<LlmMessage>>>>, // user_id -> message history
+    history: Mutex<HashMap<String, Arc<VecDeque<LlmMessage>>>>, // user_id -> message history
     file_path: String,
     max_history: usize,
 }
@@ -40,7 +40,7 @@ impl JsonHistoryStore {
 
     async fn load_from_file(
         file_path: &str,
-    ) -> Result<HashMap<String, Arc<Vec<LlmMessage>>>, crate::error::AppError> {
+    ) -> Result<HashMap<String, Arc<VecDeque<LlmMessage>>>, crate::error::AppError> {
         if std::path::Path::new(file_path).exists() {
             let data = fs::read_to_string(file_path).await.map_err(|e| {
                 eprintln!("Failed to read history file: {}", e);
@@ -73,12 +73,12 @@ impl HistoryStore for JsonHistoryStore {
             let mut history_map = self.history.lock().await;
             let user_history_arc = history_map
                 .entry(key)
-                .or_insert_with(|| Arc::new(Vec::new()));
+                .or_insert_with(|| Arc::new(VecDeque::new()));
 
             let user_history = Arc::make_mut(user_history_arc);
-            user_history.push(message);
+            user_history.push_back(message);
             if user_history.len() > self.max_history {
-                user_history.remove(0); // remove oldest
+                user_history.pop_front(); // remove oldest
             }
             history_map.clone()
         };
@@ -94,7 +94,7 @@ impl HistoryStore for JsonHistoryStore {
         &self,
         chat_id: i64,
         user_id: i64,
-    ) -> Result<Arc<Vec<LlmMessage>>, crate::error::AppError> {
+    ) -> Result<Arc<VecDeque<LlmMessage>>, crate::error::AppError> {
         let key = format!("{}_{}", chat_id, user_id);
         let history = self.history.lock().await;
         Ok(history.get(&key).cloned().unwrap_or_default())
