@@ -18,7 +18,8 @@ pub async fn run_bot(config: LlmConfig, bot_token: String) -> Result<(), crate::
     let shared_config = Arc::new(config);
 
     // user prefs store
-    let prefs_store: Arc<dyn UserPrefsStore> = Arc::new(JsonUserPrefsStore::new("user_prefs.json"));
+    let prefs_store: Arc<dyn UserPrefsStore> =
+        Arc::new(JsonUserPrefsStore::new("user_prefs.json")?);
 
     println!("============================");
     println!("Telegram Bot is now online");
