@@ -29,4 +29,10 @@ pub enum AppError {
 
     #[error("LLM config error: {0}")]
     LlmConfigError(String),
+    
+    #[error("Request error: {0}")]
+    Request(#[from] reqwest::Error),
+
+    #[error("Json error: {0}")]
+    JsonParse(#[from] serde_json::Error),
 }

@@ -1,9 +1,10 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::fs;
+//use std::fs;  //will block other user use tokio instead
 use std::path::Path;
 use tokio::sync::Mutex;
+use tokio::fs
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct UserPrefs {
@@ -13,7 +14,7 @@ pub struct UserPrefs {
 impl Default for UserPrefs {
     fn default() -> Self {
         UserPrefs {
-            soul: "neuro".to_string(), // default to nanami
+            soul: "neuro".to_string(), // default to neuro
         }
     }
 }
@@ -42,9 +43,23 @@ impl UserPrefsStore for JsonUserPrefsStore {
     }
 
     async fn set(&self, user_id: i64, prefs: UserPrefs) -> Result<(), crate::error::AppError> {
-        let mut prefs_map = self.prefs.lock().await;
-        prefs_map.insert(user_id, prefs);
-        self.save_to_file(&prefs_map)
+        // let mut prefs_map = self.prefs.lock().await;
+        // prefs_map.insert(user_id, prefs);
+        // self.save_to_file(&prefs_map)
+
+        let data_to_wtite = {
+            let mut prefsmap = self.prefs.lock.await;
+            prefs_map.insert(user_id,prefs);
+            serde_json::to_string_pretty(&*prefs_map).map_err(|e| {
+                eprintln!("Failed to serialize user prefs: {}", e);
+                create::error::AppError::UserPrefsSaveError
+            })?
+        };
+
+        fs::write(&self.file_path, data_to_wtite).await.map_err(|e| {
+            eprintln!("Failed to save user prefs: {}", e);
+            create::error::AppError::UserPrefsSaveError
+        })
     }
 }
 
@@ -59,7 +74,7 @@ impl JsonUserPrefsStore {
 
     fn load_from_file(file_path: &str) -> Result<HashMap<i64, UserPrefs>, crate::error::AppError> {
         if Path::new(file_path).exists() {
-            let data = fs::read_to_string(file_path).map_err(|e| {
+            let data = std::fs::read_to_string(file_path).map_err(|e| {
                 eprintln!("Failed to read user prefs file: {}", e);
                 crate::error::AppError::UserPrefsLoadError
             })?;
