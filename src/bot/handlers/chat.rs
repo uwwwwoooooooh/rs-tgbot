@@ -1,6 +1,6 @@
 use crate::db::history::HistoryStore;
 use crate::db::user_prefs::{UserPrefs, UserPrefsStore};
-use crate::services::llm::{LlmConfig, Message as LlmMessage, ask_llm};
+use crate::services::llm::{self, LlmConfig, Message as LlmMessage, ask_llm};
 use std::sync::Arc;
 use teloxide::prelude::*;
 
@@ -46,28 +46,35 @@ pub async fn handle_text_message(
     // Handle commands
     if cleaned_text.starts_with("/set ") {
         let parts: Vec<&str> = cleaned_text.split_whitespace().collect();
-        if parts.len() == 2 {
-            let soul = parts[1].to_lowercase();
-            let current_soul = &prefs_store.get(chat_id, user_id).await?.soul;
-            if &soul == current_soul {
-                bot.send_message(msg.chat.id, format!("I'm already {} u gym bag", soul))
-                    .await?;
-                return Ok(());
-            }
-            if soul == "nanami" || soul == "neuro" {
-                prefs_store
-                    .set(chat_id, user_id, UserPrefs { soul: soul.clone() })
-                    .await?;
-                history_store.clear_history(chat_id, user_id).await?;
-                bot.send_message(msg.chat.id, format!("I'm {} now", soul))
-                    .await?;
-                return Ok(());
-            } else {
-                bot.send_message(msg.chat.id, "only nanami or neuro")
-                    .await?;
-                return Ok(());
-            }
+        if parts.len() != 2 {
+            bot.send_message(
+                msg.chat.id,
+                "wanna leave me but don't know how to? i won't let u go pog",
+            )
+            .await?;
+            return Ok(());
         }
+        let soul = parts[1].to_lowercase();
+        let current_soul = &prefs_store.get(chat_id, user_id).await?.soul;
+        if &soul == current_soul {
+            bot.send_message(msg.chat.id, format!("I'm already {} u gym bag", soul))
+                .await?;
+            return Ok(());
+        }
+
+        if !llm::is_system_prompt_exists(&soul) {
+            bot.send_message(msg.chat.id, format!("who is {}?", &soul))
+                .await?;
+            return Ok(());
+        }
+
+        prefs_store
+            .set(chat_id, user_id, UserPrefs { soul: soul.clone() })
+            .await?;
+        history_store.clear_history(chat_id, user_id).await?;
+        bot.send_message(msg.chat.id, format!("I'm {} meow", soul))
+            .await?;
+        return Ok(());
     } else if cleaned_text.starts_with("/reset") {
         prefs_store
             .set(chat_id, user_id, UserPrefs::default())
@@ -80,10 +87,11 @@ pub async fn handle_text_message(
 
     // Build the stateless history using LlmMessage
     let prefs = prefs_store.get(chat_id, user_id).await?;
-    let system_prompt = match prefs.soul.as_str() {
-        "neuro" => crate::services::llm::load_system_prompt("neuro_soul.md"),
-        _ => crate::services::llm::load_system_prompt("nanami_soul.md"), // default to nanami
-    };
+    let system_prompt = crate::services::llm::load_system_prompt(prefs.soul.as_str())
+        .unwrap_or_else(|err| {
+            eprintln!("Error loading system prompt: {}. Using default prompt.", err);
+            "You are a helpless AI assistant. Please reply in English but spell by katakana. Example: goodo morningu".to_string()
+        });
 
     let mut prompt = vec![LlmMessage {
         role: Arc::from("system"),

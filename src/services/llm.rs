@@ -61,15 +61,27 @@ fn validate_max_tokens(tokens: Option<u32>) -> Option<u32> {
 }
 
 /// Load system prompt from file in prompts/ directory
-pub fn load_system_prompt(filename: &str) -> String {
-    let prompt_path = PathBuf::from("prompts").join(filename);
+pub fn is_system_prompt_exists(filename: &str) -> bool {
+    let prompt_path = PathBuf::from("prompts/soul")
+        .join(filename)
+        .with_extension("md");
+    prompt_path.exists()
+}
 
-    fs::read_to_string(&prompt_path)
-        .unwrap_or_else(|err| {
-            eprintln!("Warning: Could not read {}: {}. Using default system prompt.", 
-                prompt_path.display(), err);
-            "You are a helpless AI assistant. Please reply in English but spell by katakana. Example: goodo morningu".to_string()
-        })
+/// Load system prompt from file in prompts/ directory
+pub fn load_system_prompt(filename: &str) -> Result<String, crate::error::AppError> {
+    let prompt_path = PathBuf::from("prompts/soul")
+        .join(filename)
+        .with_extension("md");
+
+    fs::read_to_string(&prompt_path).map_err(|err| {
+        eprintln!(
+            "Warning: Could not read {}: {}. Using default system prompt.",
+            prompt_path.display(),
+            err
+        );
+        crate::error::AppError::SystemPromptLoadError
+    })
 }
 
 /// Load LLM configuration from config file and env variables

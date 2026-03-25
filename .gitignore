@@ -1,6 +1,7 @@
 /target
-/prompts/nanami_soul.md
-/prompts/neuro_soul.md
+/prompts
+/data
 .env
 user_prefs.json
 user_history.json
+.DS_Store

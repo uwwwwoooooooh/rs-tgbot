@@ -15,7 +15,7 @@ pub struct UserPrefs {
 impl Default for UserPrefs {
     fn default() -> Self {
         UserPrefs {
-            soul: "neuro".to_string(), // default to neuro
+            soul: "neuro".to_string(),
         }
     }
 }
@@ -38,7 +38,7 @@ pub trait UserPrefsStore: Send + Sync {
 
 // simple JSON version
 pub struct JsonUserPrefsStore {
-    prefs: Mutex<HashMap<String, Arc<UserPrefs>>>, // user_id -> prefs
+    prefs: Mutex<HashMap<String, Arc<UserPrefs>>>,
     file_path: String,
 }
 
