@@ -1,6 +1,7 @@
 use crate::services::llm::Message as LlmMessage;
 use async_trait::async_trait;
 use std::collections::{HashMap, VecDeque};
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::fs;
 use tokio::sync::Mutex;
@@ -22,39 +23,87 @@ pub trait HistoryStore: Send + Sync {
 }
 
 // simple json version
+// TODO: 1. separate files for each user
+// 2. postgres version(long term plan)
 pub struct JsonHistoryStore {
-    history: Mutex<HashMap<String, Arc<VecDeque<LlmMessage>>>>, // user_id -> message history
-    file_path: String,
+    history: Mutex<HashMap<String, Arc<VecDeque<LlmMessage>>>>,
+    base_dir: PathBuf,
     max_history: usize,
 }
 
 impl JsonHistoryStore {
-    pub async fn new(file_path: &str, max_history: usize) -> Result<Self, crate::error::AppError> {
-        let history = Self::load_from_file(file_path).await?;
+    pub async fn new(
+        base_dir: impl AsRef<Path>,
+        max_history: usize,
+    ) -> Result<Self, crate::error::AppError> {
+        let base_dir = base_dir.as_ref().to_path_buf();
+        if !base_dir.exists() {
+            fs::create_dir_all(&base_dir).await.map_err(|e| {
+                eprintln!("Failed to create history dir: {}", e);
+                crate::error::AppError::UserHistorySaveError
+            })?;
+        }
+        let history = Self::load_from_dir(&base_dir).await?;
         Ok(JsonHistoryStore {
             history: Mutex::new(history),
-            file_path: file_path.to_string(),
+            base_dir,
             max_history,
         })
     }
 
-    async fn load_from_file(
-        file_path: &str,
+    async fn load_from_dir(
+        base_dir: &PathBuf,
     ) -> Result<HashMap<String, Arc<VecDeque<LlmMessage>>>, crate::error::AppError> {
-        if std::path::Path::new(file_path).exists() {
-            let data = fs::read_to_string(file_path).await.map_err(|e| {
-                eprintln!("Failed to read history file: {}", e);
+        let mut history_map = HashMap::new();
+
+        let mut entries = fs::read_dir(base_dir).await.map_err(|e| {
+            eprintln!("Failed to read history dir: {}", e);
+            crate::error::AppError::UserHistoryLoadError
+        })?;
+
+        while let Some(entry) = entries.next_entry().await.map_err(|e| {
+            eprintln!("Failed to read history dir entry: {}", e);
+            crate::error::AppError::UserHistoryLoadError
+        })? {
+            let path = entry.path();
+            if !path.is_file() || path.extension().and_then(|s| s.to_str()) != Some("json") {
+                continue; // skip non-json files
+            }
+
+            let Some(file_stem) = path.file_stem().and_then(|s| s.to_str()) else {
+                continue; // skip files without valid name
+            };
+
+            let data = fs::read_to_string(&path).await.map_err(|e| {
+                eprintln!("Failed to read history file {}: {}", path.display(), e);
                 crate::error::AppError::UserHistoryLoadError
             })?;
-            serde_json::from_str(&data).map_err(|_| crate::error::AppError::UserHistoryLoadError)
-        } else {
-            Ok(HashMap::new())
+
+            let Ok(user_history) = serde_json::from_str::<VecDeque<LlmMessage>>(&data) else {
+                eprintln!(
+                    "Failed to parse history file {}: Invalid format",
+                    path.display()
+                );
+                continue; // skip invalid files
+            };
+
+            history_map.insert(file_stem.to_string(), Arc::new(user_history));
         }
+        Ok(history_map)
     }
 
-    async fn save_to_file(&self, data: &str) -> Result<(), crate::error::AppError> {
-        fs::write(&self.file_path, data).await.map_err(|e| {
-            eprintln!("Failed to write history file: {}", e);
+    fn get_user_file_path(&self, key: &str) -> PathBuf {
+        self.base_dir.join(format!("{}.json", key))
+    }
+
+    async fn save_user_history(&self, key: &str, data: &str) -> Result<(), crate::error::AppError> {
+        let file_path = self.get_user_file_path(key);
+        fs::write(&file_path, data).await.map_err(|e| {
+            eprintln!(
+                "Failed to write history file {}: {}",
+                file_path.display(),
+                e
+            );
             crate::error::AppError::UserHistorySaveError
         })
     }
@@ -68,11 +117,11 @@ impl HistoryStore for JsonHistoryStore {
         user_id: i64,
         message: LlmMessage,
     ) -> Result<(), crate::error::AppError> {
-        let history_map = {
-            let key = format!("{}_{}", chat_id, user_id);
+        let key = format!("{}_{}", chat_id, user_id);
+        let user_history = {
             let mut history_map = self.history.lock().await;
             let user_history_arc = history_map
-                .entry(key)
+                .entry(key.clone())
                 .or_insert_with(|| Arc::new(VecDeque::new()));
 
             let user_history = Arc::make_mut(user_history_arc);
@@ -80,14 +129,15 @@ impl HistoryStore for JsonHistoryStore {
             if user_history.len() > self.max_history {
                 user_history.pop_front(); // remove oldest
             }
-            history_map.clone()
+            // TODO: heavy operation, need to optimize.
+            user_history.clone()
         };
 
-        let data_to_write = serde_json::to_string_pretty(&history_map).map_err(|e| {
+        let data_to_write = serde_json::to_string_pretty(&user_history).map_err(|e| {
             eprintln!("Failed to serialize history: {}", e);
             crate::error::AppError::UserHistorySaveError
         })?;
-        self.save_to_file(&data_to_write).await
+        self.save_user_history(&key, &data_to_write).await
     }
 
     async fn get_history(
@@ -105,16 +155,23 @@ impl HistoryStore for JsonHistoryStore {
         chat_id: i64,
         user_id: i64,
     ) -> Result<(), crate::error::AppError> {
-        let history_map = {
-            let key = format!("{}_{}", chat_id, user_id);
+        let key = format!("{}_{}", chat_id, user_id);
+        {
             let mut history_map = self.history.lock().await;
             history_map.remove(&key);
-            history_map.clone()
-        };
-        let data_to_write = serde_json::to_string_pretty(&history_map).map_err(|e| {
-            eprintln!("Failed to serialize history: {}", e);
-            crate::error::AppError::UserHistorySaveError
-        })?;
-        self.save_to_file(&data_to_write).await
+        }
+
+        let file_path = self.get_user_file_path(&key);
+        if file_path.exists() {
+            fs::remove_file(&file_path).await.map_err(|e| {
+                eprintln!(
+                    "Failed to delete history file {}: {}",
+                    file_path.display(),
+                    e
+                );
+                crate::error::AppError::UserHistorySaveError
+            })?;
+        }
+        Ok(())
     }
 }
