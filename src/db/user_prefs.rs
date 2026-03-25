@@ -15,7 +15,7 @@ pub struct UserPrefs {
 impl Default for UserPrefs {
     fn default() -> Self {
         UserPrefs {
-            soul: "neuro".to_string(), // default to neuro
+            soul: "neuro".to_string(),
         }
     }
 }

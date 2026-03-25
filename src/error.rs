@@ -37,4 +37,7 @@ pub enum AppError {
 
     #[error("Json error: {0}")]
     JsonParse(#[from] serde_json::Error),
+
+    #[error("System prompt load error")]
+    SystemPromptLoadError,
 }
