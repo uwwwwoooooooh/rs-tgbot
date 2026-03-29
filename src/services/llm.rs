@@ -346,4 +346,64 @@ mod tests {
         assert_eq!(validate_max_tokens(Some(0)), None); // Not positive
         assert_eq!(validate_max_tokens(None), None);
     }
+
+    #[tokio::test]
+    async fn test_ask_llm_empty_choices() {
+        let mut server = Server::new_async().await;
+        let mock = server
+            .mock("POST", "/v1/chat/completions")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"choices":[]}"#)
+            .create_async()
+            .await;
+
+        let config = LlmConfig {
+            api_key: "test_key".to_string(),
+            url: server.url() + "/v1/chat/completions",
+            model_name: "test-model".to_string(),
+            temperature: None,
+            top_p: None,
+            max_completion_tokens: None,
+        };
+
+        let history = vec![Message {
+            role: Arc::from("user"),
+            content: Arc::from("Test"),
+        }];
+
+        let result = ask_llm(&config, history).await;
+        assert!(result.is_ok());
+        assert_eq!(
+            result.unwrap(),
+            "Error: The API replied successfully, but gave no content."
+        );
+
+        mock.assert_async().await;
+    }
+
+    #[test]
+    fn message_serde_roundtrip() {
+        let m = Message {
+            role: Arc::from("user"),
+            content: Arc::from("hi"),
+        };
+        let j = serde_json::to_string(&m).unwrap();
+        let back: Message = serde_json::from_str(&j).unwrap();
+        assert_eq!(&*back.role, "user");
+        assert_eq!(&*back.content, "hi");
+    }
+
+    #[test]
+    fn chat_request_skips_none_optional_fields() {
+        let req = ChatRequest {
+            model: "m",
+            messages: vec![],
+            temperature: None,
+            top_p: None,
+            max_completion_tokens: None,
+        };
+        let j = serde_json::to_string(&req).unwrap();
+        assert!(!j.contains("temperature"));
+    }
 }

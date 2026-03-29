@@ -41,3 +41,30 @@ pub enum AppError {
     #[error("System prompt load error")]
     SystemPromptLoadError,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn user_info_not_found_display() {
+        assert_eq!(
+            format!("{}", AppError::UserInfoNotFound),
+            "User info not found"
+        );
+    }
+
+    #[test]
+    fn user_text_not_found_display() {
+        assert_eq!(
+            format!("{}", AppError::UserTextNotFound),
+            "User text not found"
+        );
+    }
+
+    #[test]
+    fn llm_config_error_display() {
+        let e = AppError::LlmConfigError("missing url".to_string());
+        assert_eq!(format!("{}", e), "LLM config error: missing url");
+    }
+}

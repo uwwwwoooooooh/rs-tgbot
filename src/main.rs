@@ -2,6 +2,7 @@ mod bot;
 mod db;
 mod error;
 mod services;
+mod util;
 
 use crate::services::llm::load_llm_config;
 use dotenvy::dotenv;
@@ -30,6 +31,3 @@ async fn main() -> anyhow::Result<()> {
 
     Ok(())
 }
-
-#[cfg(test)]
-mod tests {}
