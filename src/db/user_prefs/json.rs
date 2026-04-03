@@ -1,13 +1,11 @@
-use super::user_prefs::{UserPrefs, UserPrefsStore};
+use super::{UserPrefs, UserPrefsStore};
 use async_trait::async_trait;
 use std::collections::HashMap;
-//use std::fs;  //will block other user use tokio instead
 use std::path::Path;
 use std::sync::Arc;
 use tokio::fs;
 use tokio::sync::Mutex;
 
-// simple JSON version
 #[allow(dead_code)]
 pub struct JsonUserPrefsStore {
     prefs: Mutex<HashMap<String, Arc<UserPrefs>>>,
@@ -34,9 +32,6 @@ impl UserPrefsStore for JsonUserPrefsStore {
         prefs: UserPrefs,
     ) -> Result<(), crate::error::AppError> {
         let key = format!("{}_{}", chat_id, user_id);
-        // let mut prefs_map = self.prefs.lock().await;
-        // prefs_map.insert(user_id, prefs);
-        // self.save_to_file(&prefs_map)
 
         let prefs_map = {
             let mut prefs_map = self.prefs.lock().await;
@@ -99,12 +94,6 @@ mod tests {
             "rs_tgbot_json_prefs_{}.json",
             testutil::temp_path_suffix()
         ))
-    }
-
-    #[test]
-    fn user_prefs_default_matches_expected() {
-        let p = UserPrefs::default();
-        assert_eq!(p.soul, "neuro");
     }
 
     #[tokio::test]

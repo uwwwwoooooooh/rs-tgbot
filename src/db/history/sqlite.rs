@@ -1,11 +1,10 @@
+use super::HistoryStore;
 use crate::services::llm::Message as LlmMessage;
 use async_trait::async_trait;
 use sqlx::{Row, SqlitePool};
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use tokio::sync::Mutex;
-
-use super::history::HistoryStore;
 
 pub struct SqliteHistoryStore {
     pool: SqlitePool,
@@ -126,7 +125,7 @@ impl SqliteHistoryStore {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::sqlite_pool::open_sqlite_pool;
+    use crate::db::sqlite::open_sqlite_pool;
     use crate::services::llm::Message as LlmMessage;
     use crate::util::testutil;
     use std::path::PathBuf;

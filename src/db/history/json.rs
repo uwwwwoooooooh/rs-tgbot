@@ -1,4 +1,4 @@
-use super::history::HistoryStore;
+use super::HistoryStore;
 use crate::services::llm::Message as LlmMessage;
 use async_trait::async_trait;
 use std::collections::{HashMap, VecDeque};
@@ -6,9 +6,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::fs;
 use tokio::sync::Mutex;
-// simple json version
-// TODO: 1. separate files for each user
-// 2. postgres version(long term plan)
+
 #[allow(dead_code)]
 pub struct JsonHistoryStore {
     history: Mutex<HashMap<String, Arc<VecDeque<LlmMessage>>>>,
@@ -53,11 +51,11 @@ impl JsonHistoryStore {
         })? {
             let path = entry.path();
             if !path.is_file() || path.extension().and_then(|s| s.to_str()) != Some("json") {
-                continue; // skip non-json files
+                continue;
             }
 
             let Some(file_stem) = path.file_stem().and_then(|s| s.to_str()) else {
-                continue; // skip files without valid name
+                continue;
             };
 
             let data = fs::read_to_string(&path).await.map_err(|e| {
@@ -70,7 +68,7 @@ impl JsonHistoryStore {
                     "Failed to parse history file {}: Invalid format",
                     path.display()
                 );
-                continue; // skip invalid files
+                continue;
             };
 
             history_map.insert(file_stem.to_string(), Arc::new(user_history));
@@ -114,9 +112,8 @@ impl HistoryStore for JsonHistoryStore {
             let user_history = Arc::make_mut(user_history_arc);
             user_history.push_back(message);
             if user_history.len() > self.max_history {
-                user_history.pop_front(); // remove oldest
+                user_history.pop_front();
             }
-            // TODO: heavy operation, need to optimize.
             user_history.clone()
         };
 

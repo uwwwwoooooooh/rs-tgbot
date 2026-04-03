@@ -1,4 +1,4 @@
-use super::user_prefs::{UserPrefs, UserPrefsStore};
+use super::{UserPrefs, UserPrefsStore};
 use async_trait::async_trait;
 use sqlx::{Row, SqlitePool};
 use std::collections::HashMap;
@@ -90,8 +90,7 @@ impl SqliteUserPrefsStore {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::sqlite_pool::open_sqlite_pool;
-    use crate::db::user_prefs::UserPrefs;
+    use crate::db::sqlite::open_sqlite_pool;
     use crate::util::testutil;
     use std::path::PathBuf;
 

@@ -3,11 +3,9 @@ pub mod telegram_client;
 
 use crate::bot::handlers::chat::ChatHandler;
 use crate::bot::handlers::chat::handle_text_message;
-use crate::db::history::HistoryStore;
-use crate::db::history_sqlite::SqliteHistoryStore;
-use crate::db::sqlite_pool::open_sqlite_pool;
-use crate::db::user_prefs::UserPrefsStore;
-use crate::db::user_prefs_sqlite::SqliteUserPrefsStore;
+use crate::db::history::{HistoryStore, SqliteHistoryStore};
+use crate::db::sqlite::open_sqlite_pool;
+use crate::db::user_prefs::{SqliteUserPrefsStore, UserPrefsStore};
 use crate::services::llm::LlmConfig;
 use std::sync::Arc;
 use teloxide::prelude::*;

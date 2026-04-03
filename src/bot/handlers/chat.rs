@@ -225,7 +225,7 @@ pub async fn handle_text_message(
 mod tests {
     use super::*;
     use crate::bot::telegram_client::TelegramClient;
-    use crate::db::history_json::JsonHistoryStore;
+    use crate::db::history::JsonHistoryStore;
     use crate::db::user_prefs::JsonUserPrefsStore;
     use async_trait::async_trait;
     use chrono::{DateTime, Utc};
