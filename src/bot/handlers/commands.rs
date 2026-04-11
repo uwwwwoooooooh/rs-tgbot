@@ -26,7 +26,14 @@ pub async fn handle_command(
     history_store: Arc<dyn HistoryStore>,
 ) -> Result<(), crate::error::AppError> {
     use crate::bot::telegram_client::TeloxideAdapter;
-    execute_command(Arc::new(TeloxideAdapter(bot)), msg, cmd, prefs_store, history_store).await
+    execute_command(
+        Arc::new(TeloxideAdapter(bot)),
+        msg,
+        cmd,
+        prefs_store,
+        history_store,
+    )
+    .await
 }
 
 pub async fn execute_command(
@@ -120,9 +127,15 @@ mod tests {
             Arc::new(JsonHistoryStore::new(&hist_dir, 10).await.unwrap());
 
         let msg = text_message(private_chat(55), "/reset");
-        execute_command(Arc::new(mock), msg, Command::Reset, prefs_store.clone(), history_store)
-            .await
-            .unwrap();
+        execute_command(
+            Arc::new(mock),
+            msg,
+            Command::Reset,
+            prefs_store.clone(),
+            history_store,
+        )
+        .await
+        .unwrap();
 
         let messages = sent.lock().unwrap();
         assert_eq!(messages.len(), 1);
@@ -159,9 +172,15 @@ mod tests {
 
         // Command::Set with space simulates `/set a b`
         let msg = text_message(private_chat(1), "/set a b");
-        execute_command(Arc::new(mock), msg, Command::Set("a b".to_string()), prefs_store, history_store)
-            .await
-            .unwrap();
+        execute_command(
+            Arc::new(mock),
+            msg,
+            Command::Set("a b".to_string()),
+            prefs_store,
+            history_store,
+        )
+        .await
+        .unwrap();
 
         let messages = sent.lock().unwrap();
         assert_eq!(messages.len(), 1);

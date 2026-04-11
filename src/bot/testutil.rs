@@ -1,7 +1,7 @@
 #![cfg(test)]
 
 use crate::bot::telegram_client::TelegramClient;
-use crate::services::llm::LlmConfig;
+use crate::config::LlmConfig;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use std::sync::{Arc, Mutex};

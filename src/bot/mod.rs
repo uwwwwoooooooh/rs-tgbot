@@ -4,12 +4,11 @@ pub mod telegram_client;
 #[cfg(test)]
 pub mod testutil;
 
-
 use crate::bot::handlers::chat::handle_text_message;
+use crate::config::LlmConfig;
 use crate::db::history::{HistoryStore, SqliteHistoryStore};
 use crate::db::sqlite::open_sqlite_pool;
 use crate::db::user_prefs::{SqliteUserPrefsStore, UserPrefsStore};
-use crate::services::llm::LlmConfig;
 use std::sync::Arc;
 use teloxide::prelude::*;
 
@@ -49,11 +48,7 @@ pub async fn run_bot(config: LlmConfig, bot_token: String) -> Result<(), crate::
 
     // build and start
     Dispatcher::builder(bot, handler)
-        .dependencies(dptree::deps![
-            shared_config,
-            prefs_store,
-            history_store
-        ])
+        .dependencies(dptree::deps![shared_config, prefs_store, history_store])
         .enable_ctrlc_handler()
         .build()
         .dispatch()

@@ -1,7 +1,8 @@
 use crate::bot::telegram_client::TelegramClient;
+use crate::config::LlmConfig;
 use crate::db::history::HistoryStore;
 use crate::db::user_prefs::UserPrefsStore;
-use crate::services::llm::{LlmConfig, Message as LlmMessage, ask_llm};
+use crate::services::llm::{Message as LlmMessage, ask_llm};
 use std::sync::Arc;
 use teloxide::prelude::*;
 
@@ -104,7 +105,14 @@ pub async fn handle_text_message(
 ) -> Result<(), crate::error::AppError> {
     use crate::bot::telegram_client::TeloxideAdapter;
 
-    handle_text_message_inner(Arc::new(TeloxideAdapter(bot)), msg, config, prefs_store, history_store).await
+    handle_text_message_inner(
+        Arc::new(TeloxideAdapter(bot)),
+        msg,
+        config,
+        prefs_store,
+        history_store,
+    )
+    .await
 }
 
 #[cfg(test)]
@@ -170,7 +178,9 @@ mod tests {
         let mut m = text_message(private_chat(1), "hi");
         m.from = None;
         let mock = MockTelegram::new(test_bot_me());
-        let r = super::handle_text_message_inner(Arc::new(mock), m, config, prefs_store, history_store).await;
+        let r =
+            super::handle_text_message_inner(Arc::new(mock), m, config, prefs_store, history_store)
+                .await;
         assert!(matches!(r, Err(crate::error::AppError::UserInfoNotFound)));
 
         let _ = std::fs::remove_file(&prefs_path);
@@ -199,7 +209,14 @@ mod tests {
 
         let mock = MockTelegram::new(test_bot_me());
         let msg = empty_kind_message(private_chat(1));
-        let r = super::handle_text_message_inner(Arc::new(mock), msg, config, prefs_store, history_store).await;
+        let r = super::handle_text_message_inner(
+            Arc::new(mock),
+            msg,
+            config,
+            prefs_store,
+            history_store,
+        )
+        .await;
         assert!(matches!(r, Err(crate::error::AppError::UserTextNotFound)));
 
         let _ = std::fs::remove_file(&prefs_path);
@@ -245,9 +262,15 @@ mod tests {
         let mock = MockTelegram::new(test_bot_me());
         let sent = Arc::clone(&mock.sent);
         let msg = text_message(private_chat(77), "hello");
-        super::handle_text_message_inner(Arc::new(mock), msg, config, prefs_store.clone(), history_store.clone())
-            .await
-            .unwrap();
+        super::handle_text_message_inner(
+            Arc::new(mock),
+            msg,
+            config,
+            prefs_store.clone(),
+            history_store.clone(),
+        )
+        .await
+        .unwrap();
 
         let messages = sent.lock().unwrap();
         assert_eq!(messages.len(), 1);
