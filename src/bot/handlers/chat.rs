@@ -1,7 +1,7 @@
 use crate::bot::telegram_client::TelegramClient;
 use crate::config::LlmConfig;
-use crate::db::history::HistoryStore;
-use crate::db::user_prefs::UserPrefsStore;
+use crate::domain::history::HistoryStore;
+use crate::domain::user::UserPrefsStore;
 use crate::services::llm::{Message as LlmMessage, ask_llm};
 use std::sync::Arc;
 use teloxide::prelude::*;

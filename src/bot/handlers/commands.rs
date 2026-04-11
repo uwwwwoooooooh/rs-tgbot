@@ -1,6 +1,6 @@
 use crate::bot::telegram_client::TelegramClient;
-use crate::db::history::HistoryStore;
-use crate::db::user_prefs::{UserPrefs, UserPrefsStore};
+use crate::domain::history::HistoryStore;
+use crate::domain::user::{UserPrefs, UserPrefsStore};
 use crate::services::llm;
 use std::sync::Arc;
 use teloxide::macros::BotCommands;
@@ -102,8 +102,10 @@ pub async fn execute_command(
 mod tests {
     use super::*;
     use crate::bot::testutil::*;
-    use crate::db::history::{HistoryStore, JsonHistoryStore};
-    use crate::db::user_prefs::{JsonUserPrefsStore, UserPrefsStore};
+    use crate::db::history::JsonHistoryStore;
+    use crate::db::user_prefs::JsonUserPrefsStore;
+    use crate::domain::history::HistoryStore;
+    use crate::domain::user::UserPrefsStore;
 
     #[tokio::test]
     async fn execute_reset_sends_confirmation_and_defaults_prefs() {

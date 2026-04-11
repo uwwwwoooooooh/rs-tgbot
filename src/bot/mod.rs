@@ -6,9 +6,11 @@ pub mod testutil;
 
 use crate::bot::handlers::chat::handle_text_message;
 use crate::config::LlmConfig;
-use crate::db::history::{HistoryStore, SqliteHistoryStore};
+use crate::db::history::SqliteHistoryStore;
 use crate::db::sqlite::open_sqlite_pool;
-use crate::db::user_prefs::{SqliteUserPrefsStore, UserPrefsStore};
+use crate::db::user_prefs::SqliteUserPrefsStore;
+use crate::domain::history::HistoryStore;
+use crate::domain::user::UserPrefsStore;
 use std::sync::Arc;
 use teloxide::prelude::*;
 

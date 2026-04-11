@@ -1,6 +1,7 @@
 mod bot;
 pub mod config;
 mod db;
+pub mod domain;
 mod error;
 mod services;
 mod util;

@@ -2,7 +2,6 @@ use config::Config;
 use serde::Deserialize;
 use std::env;
 
-/// all config needed to communicate with the LLM provider.
 #[derive(Debug, Clone, Deserialize)]
 pub struct LlmConfig {
     pub api_key: String,
@@ -22,10 +21,8 @@ pub struct AppConfig {
 
 impl AppConfig {
     pub fn load() -> Result<Self, crate::error::AppError> {
-        // load .env
         dotenvy::dotenv().ok();
 
-        // 1. telegram token
         let telegram_bot_token = env::var("TELEGRAM_BOT_TOKEN").map_err(|_| {
             crate::error::AppError::ConfigError(config::ConfigError::Message(
                 "TELEGRAM_BOT_TOKEN must be set in the .env file!".into(),
@@ -41,7 +38,6 @@ impl AppConfig {
     }
 }
 
-/// temperature within (0.0 - 2.0)
 fn validate_temperature(temp: Option<f32>) -> Option<f32> {
     temp.and_then(|t| {
         if (0.0..=2.0).contains(&t) {
@@ -52,14 +48,11 @@ fn validate_temperature(temp: Option<f32>) -> Option<f32> {
     })
 }
 
-/// max_completion_tokens must be positive
 fn validate_max_tokens(tokens: Option<u32>) -> Option<u32> {
     tokens.and_then(|t| if t > 0 { Some(t) } else { None })
 }
 
-/// Load LLM configuration from config file and env variables
 fn load_llm_config() -> Result<LlmConfig, crate::error::AppError> {
-    // Define config structure
     #[derive(Deserialize)]
     struct LlmConfigFile {
         url: Option<String>,
@@ -69,13 +62,11 @@ fn load_llm_config() -> Result<LlmConfig, crate::error::AppError> {
         max_completion_tokens: Option<u32>,
     }
 
-    // Load from default config file (config/default.toml)
     let config = Config::builder()
         .add_source(config::File::with_name("config/default.toml"))
         .add_source(config::Environment::with_prefix("LLM"))
         .build()?;
 
-    // Extract llm section and convert to struct
     let llm_file: LlmConfigFile = config.get::<LlmConfigFile>("llm")?;
 
     let url = llm_file.url.ok_or(crate::error::AppError::LlmConfigError(
@@ -88,7 +79,6 @@ fn load_llm_config() -> Result<LlmConfig, crate::error::AppError> {
             "LLM model name is missing in config".to_string(),
         ))?;
 
-    // API key must be set
     let api_key = env::var("LLM_API_KEY")?;
 
     let temperature = validate_temperature(llm_file.temperature);

@@ -1,4 +1,4 @@
-use super::HistoryStore;
+use crate::domain::history::HistoryStore;
 use crate::services::llm::Message as LlmMessage;
 use async_trait::async_trait;
 use std::collections::{HashMap, VecDeque};
