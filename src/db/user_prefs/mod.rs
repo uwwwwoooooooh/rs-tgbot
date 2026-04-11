@@ -5,7 +5,8 @@ use std::sync::Arc;
 mod json;
 mod sqlite;
 
-#[cfg_attr(not(test), allow(unused_imports))] // JSON backend used from unit tests / optional wiring
+#[cfg_attr(not(test), allow(unused_imports))]
+// JSON backend used from unit tests / optional wiring
 pub use json::JsonUserPrefsStore;
 pub use sqlite::SqliteUserPrefsStore;
 

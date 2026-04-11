@@ -23,6 +23,7 @@ pub trait HistoryStore: Send + Sync {
 mod json;
 mod sqlite;
 
-#[cfg_attr(not(test), allow(unused_imports))] // JSON backend used from unit tests / optional wiring
+#[cfg_attr(not(test), allow(unused_imports))]
+// JSON backend used from unit tests / optional wiring
 pub use json::JsonHistoryStore;
 pub use sqlite::SqliteHistoryStore;

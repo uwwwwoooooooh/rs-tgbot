@@ -1,6 +1,9 @@
 pub mod handlers;
 pub mod telegram_client;
 
+#[cfg(test)]
+pub mod testutil;
+
 use crate::bot::handlers::chat::ChatHandler;
 use crate::bot::handlers::chat::handle_text_message;
 use crate::db::history::{HistoryStore, SqliteHistoryStore};
@@ -32,9 +35,17 @@ pub async fn run_bot(config: LlmConfig, bot_token: String) -> Result<(), crate::
     println!("Telegram Bot is now online");
     println!("============================");
 
+    use crate::bot::handlers::commands::{Command, handle_command};
+
     // only handle text messages
     // TODO: pictures, files, etc.
-    let handler = Update::filter_message().endpoint(handle_text_message);
+    let handler = Update::filter_message()
+        .branch(
+            dptree::entry()
+                .filter_command::<Command>()
+                .endpoint(handle_command),
+        )
+        .branch(dptree::endpoint(handle_text_message));
 
     // build and start
     Dispatcher::builder(bot, handler)
