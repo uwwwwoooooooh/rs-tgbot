@@ -4,7 +4,7 @@ pub mod telegram_client;
 #[cfg(test)]
 pub mod testutil;
 
-use crate::bot::handlers::chat::ChatHandler;
+
 use crate::bot::handlers::chat::handle_text_message;
 use crate::db::history::{HistoryStore, SqliteHistoryStore};
 use crate::db::sqlite::open_sqlite_pool;
@@ -49,11 +49,11 @@ pub async fn run_bot(config: LlmConfig, bot_token: String) -> Result<(), crate::
 
     // build and start
     Dispatcher::builder(bot, handler)
-        .dependencies(dptree::deps![ChatHandler {
-            config: shared_config,
+        .dependencies(dptree::deps![
+            shared_config,
             prefs_store,
             history_store
-        }])
+        ])
         .enable_ctrlc_handler()
         .build()
         .dispatch()

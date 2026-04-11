@@ -1,6 +1,6 @@
-use crate::bot::handlers::chat::ChatHandler;
 use crate::bot::telegram_client::TelegramClient;
-use crate::db::user_prefs::UserPrefs;
+use crate::db::history::HistoryStore;
+use crate::db::user_prefs::{UserPrefs, UserPrefsStore};
 use crate::services::llm;
 use std::sync::Arc;
 use teloxide::macros::BotCommands;
@@ -22,17 +22,19 @@ pub async fn handle_command(
     bot: Bot,
     msg: Message,
     cmd: Command,
-    deps: ChatHandler,
+    prefs_store: Arc<dyn UserPrefsStore>,
+    history_store: Arc<dyn HistoryStore>,
 ) -> Result<(), crate::error::AppError> {
     use crate::bot::telegram_client::TeloxideAdapter;
-    execute_command(Arc::new(TeloxideAdapter(bot)), msg, cmd, deps).await
+    execute_command(Arc::new(TeloxideAdapter(bot)), msg, cmd, prefs_store, history_store).await
 }
 
 pub async fn execute_command(
     bot: Arc<dyn TelegramClient>,
     msg: Message,
     cmd: Command,
-    deps: ChatHandler,
+    prefs_store: Arc<dyn UserPrefsStore>,
+    history_store: Arc<dyn HistoryStore>,
 ) -> Result<(), crate::error::AppError> {
     let user = msg
         .from
@@ -56,7 +58,7 @@ pub async fn execute_command(
             }
 
             let soul = soul.to_lowercase();
-            let current_soul = &deps.prefs_store.get(chat_id, user_id).await?.soul;
+            let current_soul = &prefs_store.get(chat_id, user_id).await?.soul;
 
             if &soul == current_soul {
                 let msg_text = format!("I'm already {} u gym bag", soul);
@@ -70,18 +72,18 @@ pub async fn execute_command(
                 return Ok(());
             }
 
-            deps.prefs_store
+            prefs_store
                 .set(chat_id, user_id, UserPrefs { soul: soul.clone() })
                 .await?;
-            deps.history_store.clear_history(chat_id, user_id).await?;
+            history_store.clear_history(chat_id, user_id).await?;
             let msg_text = format!("I'm {} meow", soul);
             bot.send_text(msg.chat.id, &msg_text).await?;
         }
         Command::Reset => {
-            deps.prefs_store
+            prefs_store
                 .set(chat_id, user_id, UserPrefs::default())
                 .await?;
-            deps.history_store.clear_history(chat_id, user_id).await?;
+            history_store.clear_history(chat_id, user_id).await?;
             bot.send_text(msg.chat.id, "Reset to default soul and cleared history.")
                 .await?;
         }
@@ -116,14 +118,9 @@ mod tests {
         );
         let history_store: Arc<dyn HistoryStore> =
             Arc::new(JsonHistoryStore::new(&hist_dir, 10).await.unwrap());
-        let deps = ChatHandler {
-            config: Arc::new(dummy_llm_config("http://unused.invalid")),
-            prefs_store: prefs_store.clone(),
-            history_store,
-        };
 
         let msg = text_message(private_chat(55), "/reset");
-        execute_command(Arc::new(mock), msg, Command::Reset, deps)
+        execute_command(Arc::new(mock), msg, Command::Reset, prefs_store.clone(), history_store)
             .await
             .unwrap();
 
@@ -159,15 +156,10 @@ mod tests {
         );
         let history_store: Arc<dyn HistoryStore> =
             Arc::new(JsonHistoryStore::new(&hist_dir, 10).await.unwrap());
-        let deps = ChatHandler {
-            config: Arc::new(dummy_llm_config("http://unused.invalid")),
-            prefs_store,
-            history_store,
-        };
 
         // Command::Set with space simulates `/set a b`
         let msg = text_message(private_chat(1), "/set a b");
-        execute_command(Arc::new(mock), msg, Command::Set("a b".to_string()), deps)
+        execute_command(Arc::new(mock), msg, Command::Set("a b".to_string()), prefs_store, history_store)
             .await
             .unwrap();
 
