@@ -31,7 +31,6 @@ pub struct Choice {
     pub message: Message,
 }
 
-/// Load system prompt from file in prompts/ directory
 pub fn is_system_prompt_exists(filename: &str) -> bool {
     let prompt_path = PathBuf::from("prompts/soul")
         .join(filename)
@@ -39,7 +38,6 @@ pub fn is_system_prompt_exists(filename: &str) -> bool {
     prompt_path.exists()
 }
 
-/// Load system prompt from file in prompts/ directory
 pub fn load_system_prompt(filename: &str) -> Result<String, crate::error::AppError> {
     let prompt_path = PathBuf::from("prompts/soul")
         .join(filename)
@@ -55,7 +53,6 @@ pub fn load_system_prompt(filename: &str) -> Result<String, crate::error::AppErr
     })
 }
 
-/// Send entire conversation history
 pub async fn ask_llm(
     config: &crate::config::LlmConfig,
     prompt: Vec<Message>,
@@ -70,7 +67,6 @@ pub async fn ask_llm(
         max_completion_tokens: config.max_completion_tokens,
     };
 
-    // HTTP POST request with URL and API key
     let response = client
         .post(&config.url)
         .header("Authorization", format!("Bearer {}", config.api_key))
@@ -81,9 +77,7 @@ pub async fn ask_llm(
 
     let raw_text = response.text().await?;
 
-    // parse response
     let parsed_response = serde_json::from_str::<ChatResponse>(&raw_text)?;
-    // first() changed to into_iter, take the ownership to avoid deep copy
     let Some(choice) = parsed_response.choices.into_iter().next() else {
         return Ok("Error: The API replied successfully, but gave no content.".to_string());
     };

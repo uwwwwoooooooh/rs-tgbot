@@ -1,4 +1,4 @@
-use super::{UserPrefs, UserPrefsStore};
+use crate::domain::user::{UserPrefs, UserPrefsStore};
 use async_trait::async_trait;
 use sqlx::{Row, SqlitePool};
 use std::collections::HashMap;
