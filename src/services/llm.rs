@@ -59,9 +59,21 @@ pub async fn ask_llm(
 ) -> Result<String, crate::error::AppError> {
     let client = Client::new();
 
+    let mut messages = prompt;
+
+    // Gemma-4 specific: auto-inject <|think|> into system prompt to enable reasoning
+    if (config.model_name.to_lowercase().contains("gemma")
+        || config.model_name.to_lowercase().contains("local"))
+        && let Some(first_msg) = messages.get_mut(0)
+        && first_msg.role.as_ref() == "system"
+        && !first_msg.content.starts_with("<|think|>")
+    {
+        first_msg.content = Arc::from(format!("<|think|>\n{}", first_msg.content));
+    }
+
     let request_body = ChatRequest {
         model: &config.model_name,
-        messages: prompt,
+        messages,
         temperature: config.temperature,
         top_p: config.top_p,
         max_completion_tokens: config.max_completion_tokens,
@@ -84,9 +96,17 @@ pub async fn ask_llm(
 
     let content_str = &choice.message.content;
 
-    // Clean up <think> block
+    // Clean up <think> block (MiniMax/DeepSeek) or <channel|> blocks (Gemma 4)
     let final_answer = if let Some(end_index) = content_str.find("</think>") {
-        content_str[end_index + 8..].trim().to_string()
+        let close_tag = "</think>";
+        content_str[end_index + close_tag.len()..]
+            .trim()
+            .to_string()
+    } else if let Some(end_index) = content_str.find("<channel|>") {
+        let close_tag = "<channel|>";
+        content_str[end_index + close_tag.len()..]
+            .trim()
+            .to_string()
     } else {
         content_str.trim().to_string()
     };
@@ -231,6 +251,38 @@ mod tests {
             result.unwrap(),
             "Error: The API replied successfully, but gave no content."
         );
+
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn test_ask_llm_with_gemma_channel_block() {
+        let mut server = Server::new_async().await;
+        let mock = server
+            .mock("POST", "/v1/chat/completions")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"choices":[{"message":{"role":"assistant","content":"<|channel>thought\nGemma thinking...<channel|>Gemma final answer"}}]}"#)
+            .create_async()
+            .await;
+
+        let config = crate::config::LlmConfig {
+            api_key: "test_key".to_string(),
+            url: server.url() + "/v1/chat/completions",
+            model_name: "gemma-4".to_string(),
+            temperature: None,
+            top_p: None,
+            max_completion_tokens: None,
+        };
+
+        let history = vec![Message {
+            role: Arc::from("user"),
+            content: Arc::from("Test"),
+        }];
+
+        let result = ask_llm(&config, history).await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "Gemma final answer");
 
         mock.assert_async().await;
     }

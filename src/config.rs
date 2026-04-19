@@ -121,8 +121,8 @@ mod tests {
 
         let config = load_llm_config().unwrap();
 
-        assert_eq!(config.url, "https://api.minimax.io/v1/chat/completions");
-        assert_eq!(config.model_name, "MiniMax-M2.7");
+        assert_eq!(config.url, "http://127.0.0.1:1234/v1/chat/completions");
+        assert_eq!(config.model_name, "local-model");
         assert!(config.temperature.is_some());
         assert!(config.top_p.is_some());
         assert!(config.max_completion_tokens.is_some());
