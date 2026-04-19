@@ -1,3 +1,4 @@
+use crate::domain::history::HistoryStore;
 use crate::services::llm::Message as LlmMessage;
 use async_trait::async_trait;
 use std::collections::{HashMap, VecDeque};
@@ -5,32 +6,15 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::fs;
 use tokio::sync::Mutex;
-#[async_trait]
-pub trait HistoryStore: Send + Sync {
-    async fn add_message(
-        &self,
-        chat_id: i64,
-        user_id: i64,
-        message: LlmMessage,
-    ) -> Result<(), crate::error::AppError>;
-    async fn get_history(
-        &self,
-        chat_id: i64,
-        user_id: i64,
-    ) -> Result<Arc<VecDeque<LlmMessage>>, crate::error::AppError>;
-    async fn clear_history(&self, chat_id: i64, user_id: i64)
-    -> Result<(), crate::error::AppError>;
-}
 
-// simple json version
-// TODO: 1. separate files for each user
-// 2. postgres version(long term plan)
+#[allow(dead_code)]
 pub struct JsonHistoryStore {
     history: Mutex<HashMap<String, Arc<VecDeque<LlmMessage>>>>,
     base_dir: PathBuf,
     max_history: usize,
 }
 
+#[allow(dead_code)]
 impl JsonHistoryStore {
     pub async fn new(
         base_dir: impl AsRef<Path>,
@@ -67,11 +51,11 @@ impl JsonHistoryStore {
         })? {
             let path = entry.path();
             if !path.is_file() || path.extension().and_then(|s| s.to_str()) != Some("json") {
-                continue; // skip non-json files
+                continue;
             }
 
             let Some(file_stem) = path.file_stem().and_then(|s| s.to_str()) else {
-                continue; // skip files without valid name
+                continue;
             };
 
             let data = fs::read_to_string(&path).await.map_err(|e| {
@@ -84,7 +68,7 @@ impl JsonHistoryStore {
                     "Failed to parse history file {}: Invalid format",
                     path.display()
                 );
-                continue; // skip invalid files
+                continue;
             };
 
             history_map.insert(file_stem.to_string(), Arc::new(user_history));
@@ -110,6 +94,7 @@ impl JsonHistoryStore {
 }
 
 #[async_trait]
+#[allow(dead_code)]
 impl HistoryStore for JsonHistoryStore {
     async fn add_message(
         &self,
@@ -127,9 +112,8 @@ impl HistoryStore for JsonHistoryStore {
             let user_history = Arc::make_mut(user_history_arc);
             user_history.push_back(message);
             if user_history.len() > self.max_history {
-                user_history.pop_front(); // remove oldest
+                user_history.pop_front();
             }
-            // TODO: heavy operation, need to optimize.
             user_history.clone()
         };
 
@@ -173,5 +157,62 @@ impl HistoryStore for JsonHistoryStore {
             })?;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::services::llm::Message as LlmMessage;
+    use crate::util::testutil;
+    use std::path::PathBuf;
+    use std::sync::Arc;
+
+    fn temp_history_dir() -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "rs_tgbot_json_hist_{}",
+            testutil::temp_path_suffix()
+        ))
+    }
+
+    fn user_msg(content: &str) -> LlmMessage {
+        LlmMessage {
+            role: Arc::from("user"),
+            content: Arc::from(content),
+        }
+    }
+
+    #[tokio::test]
+    async fn json_history_add_get_clear() {
+        let dir = temp_history_dir();
+        let store = JsonHistoryStore::new(&dir, 10).await.unwrap();
+
+        store.add_message(5, 6, user_msg("ping")).await.unwrap();
+        let hist = store.get_history(5, 6).await.unwrap();
+        assert_eq!(hist.len(), 1);
+        assert_eq!(&*hist[0].content, "ping");
+
+        store.clear_history(5, 6).await.unwrap();
+        let hist = store.get_history(5, 6).await.unwrap();
+        assert!(hist.is_empty());
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn json_history_truncates_to_max() {
+        let dir = temp_history_dir();
+        let store = JsonHistoryStore::new(&dir, 2).await.unwrap();
+
+        store.add_message(1, 1, user_msg("x")).await.unwrap();
+        store.add_message(1, 1, user_msg("y")).await.unwrap();
+        store.add_message(1, 1, user_msg("z")).await.unwrap();
+
+        let hist = store.get_history(1, 1).await.unwrap();
+        assert_eq!(hist.len(), 2);
+        assert_eq!(&*hist[0].content, "y");
+        assert_eq!(&*hist[1].content, "z");
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

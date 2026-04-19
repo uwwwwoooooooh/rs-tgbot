@@ -1,48 +1,19 @@
+use crate::domain::user::{UserPrefs, UserPrefsStore};
 use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-//use std::fs;  //will block other user use tokio instead
 use std::path::Path;
 use std::sync::Arc;
 use tokio::fs;
 use tokio::sync::Mutex;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct UserPrefs {
-    pub soul: String,
-}
-
-impl Default for UserPrefs {
-    fn default() -> Self {
-        UserPrefs {
-            soul: "neuro".to_string(),
-        }
-    }
-}
-
-// TODO: postgres version
-#[async_trait]
-pub trait UserPrefsStore: Send + Sync {
-    async fn get(
-        &self,
-        chat_id: i64,
-        user_id: i64,
-    ) -> Result<Arc<UserPrefs>, crate::error::AppError>;
-    async fn set(
-        &self,
-        chat_id: i64,
-        user_id: i64,
-        prefs: UserPrefs,
-    ) -> Result<(), crate::error::AppError>;
-}
-
-// simple JSON version
+#[allow(dead_code)]
 pub struct JsonUserPrefsStore {
     prefs: Mutex<HashMap<String, Arc<UserPrefs>>>,
     file_path: String,
 }
 
 #[async_trait]
+#[allow(dead_code)]
 impl UserPrefsStore for JsonUserPrefsStore {
     async fn get(
         &self,
@@ -61,9 +32,6 @@ impl UserPrefsStore for JsonUserPrefsStore {
         prefs: UserPrefs,
     ) -> Result<(), crate::error::AppError> {
         let key = format!("{}_{}", chat_id, user_id);
-        // let mut prefs_map = self.prefs.lock().await;
-        // prefs_map.insert(user_id, prefs);
-        // self.save_to_file(&prefs_map)
 
         let prefs_map = {
             let mut prefs_map = self.prefs.lock().await;
@@ -83,6 +51,7 @@ impl UserPrefsStore for JsonUserPrefsStore {
     }
 }
 
+#[allow(dead_code)]
 impl JsonUserPrefsStore {
     pub async fn new(file_path: &str) -> Result<Self, crate::error::AppError> {
         let prefs = Self::load_from_file(file_path).await?;
@@ -111,5 +80,43 @@ impl JsonUserPrefsStore {
             eprintln!("Failed to save user prefs: {}", e);
             crate::error::AppError::UserPrefsSaveError
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::util::testutil;
+    use std::path::PathBuf;
+
+    fn temp_prefs_file() -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "rs_tgbot_json_prefs_{}.json",
+            testutil::temp_path_suffix()
+        ))
+    }
+
+    #[tokio::test]
+    async fn json_user_prefs_set_and_get() {
+        let path = temp_prefs_file();
+        let store = JsonUserPrefsStore::new(path.to_str().unwrap())
+            .await
+            .unwrap();
+
+        store
+            .set(
+                100,
+                200,
+                UserPrefs {
+                    soul: "alpha".to_string(),
+                },
+            )
+            .await
+            .unwrap();
+
+        let got = store.get(100, 200).await.unwrap();
+        assert_eq!(got.soul, "alpha");
+
+        let _ = std::fs::remove_file(&path);
     }
 }
